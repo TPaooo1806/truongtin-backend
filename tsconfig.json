@@ -2,12 +2,12 @@
   "compilerOptions": {
     "target": "es2016",
     "module": "commonjs",
-    "rootDir": "./",             // Đổi thành "./" để bao trùm cả project
+    "rootDir": "./src",           
     "outDir": "./dist",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "prisma/**/*"] // <-- Sửa dòng này
+  "include": ["src/**/*"] // XÓA "prisma/**/*" ở đây đi
 }
