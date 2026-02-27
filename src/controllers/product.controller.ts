@@ -259,8 +259,13 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
     }
 
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
+    const sheet = workbook.Sheets["Products"]; 
+    
+    // Bắt lỗi rủi ro nếu Admin tự ý đổi tên Sheet dưới Excel
+    if (!sheet) {
+      res.status(400).json({ success: false, message: "File Excel không hợp lệ. Vui lòng không đổi tên Sheet 'Products'!" });
+      return;
+    }
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
     // IMPROVEMENT 3: GIỚI HẠN FILE SIZE & DÒNG
