@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'Nhozmin123';
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 // 1. ĐĂNG KÝ
 export const register = async (req: Request, res: Response) => {
@@ -58,7 +58,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, role: user.role },
       JWT_SECRET,
-      { expiresIn: '7d' } // Đăng nhập tồn tại 7 ngày
+      { expiresIn: '1h' } // Đăng nhập tồn tại 
     );
 
     // Xóa password khỏi kết quả trả về Frontend cho an toàn

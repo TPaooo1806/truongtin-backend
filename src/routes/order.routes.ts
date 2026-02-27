@@ -4,7 +4,8 @@ import {
   verifyPayOSWebhook, 
   trackOrder, 
   adminApproveOrder,
-  getAllOrdersAdmin // Đã import thành công
+  adminCancelOrder,
+  getAllOrdersAdmin
 } from "../controllers/order.controller";
 import { verifyToken, isAdmin } from "../middlewares/auth.middleware"; 
 
@@ -32,12 +33,18 @@ router.post("/webhook", verifyPayOSWebhook);
  * Lấy danh sách toàn bộ đơn hàng
  * URL: GET http://localhost:5000/api/orders/admin/all
  */
-router.get("/admin/all", verifyToken, isAdmin, getAllOrdersAdmin); // <--- BẠN ĐANG THIẾU DÒNG NÀY
+router.get("/admin/all", verifyToken, isAdmin, getAllOrdersAdmin);
 
 /**
  * Duyệt đơn và thực hiện trừ kho hàng
  * URL: PATCH http://localhost:5000/api/orders/approve/:orderId
  */
 router.patch("/approve/:orderId", verifyToken, isAdmin, adminApproveOrder);
+
+/**
+ * Hủy đơn hàng
+ * URL: PATCH http://localhost:5000/api/orders/cancel/:orderId
+ */
+router.patch("/cancel/:orderId", verifyToken, isAdmin, adminCancelOrder);
 
 export default router;

@@ -210,7 +210,62 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
 };
 
 // ==========================================
-// 4. NGƯỜI DÙNG: TRA CỨU ĐƠN HÀNG
+// 4. ADMIN: HỦY ĐƠN
+// ==========================================
+export const adminCancelOrder = async (req: Request, res: Response): Promise<void> => {
+  const { orderId } = req.params;
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: Number(orderId) }
+    });
+
+    if (!order) {
+      res.status(404).json({
+        success: false,
+        message: "Không tìm thấy đơn hàng"
+      });
+      return;
+    }
+
+    if (order.status === "PAID_AND_CONFIRMED") {
+      res.status(400).json({
+        success: false,
+        message: "Không thể huỷ đơn đã duyệt"
+      });
+      return;
+    }
+
+    if (order.status === "CANCELLED") {
+      res.status(400).json({
+        success: false,
+        message: "Đơn đã bị huỷ trước đó"
+      });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: Number(orderId) },
+      data: {
+        status: "CANCELLED"
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Đã huỷ đơn hàng"
+    });
+
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ==========================================
+// 5. NGƯỜI DÙNG: TRA CỨU ĐƠN HÀNG
 // ==========================================
 export const trackOrder = async (req: Request, res: Response): Promise<void> => {
   const { orderCode, phone } = req.body;

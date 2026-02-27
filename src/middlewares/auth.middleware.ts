@@ -15,8 +15,8 @@ export const verifyToken = (
   const token = authHeader.split(' ')[1];
 
  try {
-    // THAY THẾ DÒNG NÀY: Cung cấp luôn một chìa khóa dự phòng phòng hờ file .env bị lỗi
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'Nhozmin123');
+  const JWT_SECRET = process.env.JWT_SECRET as string;
+  const decoded = jwt.verify(token, JWT_SECRET);
     
     (req as any).user = decoded;
     next();
