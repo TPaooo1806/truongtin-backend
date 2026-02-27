@@ -27,9 +27,15 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     if (category) {
       whereCondition.category = { slug: category };
     }
-    if (q) {
-      whereCondition.name = { contains: q.trim(), mode: 'insensitive' };
-    }
+   if (q) {
+  // Băm từ khóa thành mảng các từ (vd: "ống pvc" -> ["ống", "pvc"])
+  const searchWords = q.trim().split(/\s+/);
+  
+  // Yêu cầu Prisma tìm sản phẩm có chứa TẤT CẢ các từ này
+  whereCondition.AND = searchWords.map(word => ({
+    name: { contains: word, mode: 'insensitive' }
+  }));
+}
 
     const [products, totalItems] = await Promise.all([
       prisma.product.findMany({
