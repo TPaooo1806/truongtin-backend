@@ -16,7 +16,7 @@ const router = express.Router();
 // ==========================================
 
 // 1. Tạo đơn hàng
-router.post("/", verifyToken, createOrder);
+router.post("/", createOrder);
 
 // 2. Tra cứu đơn hàng
 router.post("/track", trackOrder);

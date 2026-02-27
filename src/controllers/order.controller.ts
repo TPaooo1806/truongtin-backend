@@ -24,21 +24,18 @@ const payos = new PayOS({
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 // ==========================================
-// 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG
+// 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (HỖ TRỢ KHÁCH VÃNG LAI)
 // ==========================================
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   const { fullName, phone, address, paymentMethod, items } = req.body;
+  
+  // Lấy userId nếu có đăng nhập (Không ép buộc)
   const userId = (req as any).user?.id;
 
-  if (!userId) {
-    res.status(401).json({ success: false, message: "Vui lòng đăng nhập!" });
-    return;
-  }
-
   try {
-    // Chặn spam 15s
+    // Chặn spam 15s (Dùng số điện thoại để chặn vì khách có thể không đăng nhập)
     const recentOrder = await prisma.order.findFirst({
-      where: { userId: Number(userId), createdAt: { gte: new Date(Date.now() - 15000) } }
+      where: { phone: phone.trim(), createdAt: { gte: new Date(Date.now() - 15000) } }
     });
     if (recentOrder) {
       res.status(429).json({ success: false, message: "Thao tác quá nhanh, thử lại sau 15s." });
@@ -71,7 +68,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         price: dbVariant.price 
       });
 
-      // ĐÂY LÀ CHỖ ĐỂ PAYOS HIỆN TÊN SẢN PHẨM MÀ KHÔNG BỊ LỖI
+      // Để PayOS hiện tên sản phẩm mà không bị lỗi
       payosItemsPayload.push({
         name: dbVariant.product?.name.substring(0, 200) || `SP #${dbVariant.id}`,
         quantity: Number(item.quantity),
@@ -82,7 +79,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     // Tạo đơn hàng (Trạng thái PENDING)
     const newOrder = await prisma.order.create({
       data: {
-        userId: Number(userId),
+        userId: userId || null,
         orderCode: payosOrderCode,
         customerName: fullName,
         phone: phone,
@@ -98,13 +95,12 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       const paymentData = {
         orderCode: payosOrderCode,
         amount: calculatedTotal,
-        description: `Thanh toan don ${payosOrderCode}`,
+        description: `Thanh toan don hang`, // ĐÃ FIX: Chỉ 19 ký tự, thỏa mãn chuẩn < 25 ký tự của PayOS
         cancelUrl: `${FRONTEND_URL}/order/cancel`,
         returnUrl: `${FRONTEND_URL}/order/success`,
         items: payosItemsPayload 
       };
 
-      // TRỞ VỀ HÀM CHUẨN CỦA VERSION BẠN ĐANG DÙNG
       const paymentLink = await payos.paymentRequests.create(paymentData);
       res.status(200).json({ success: true, checkoutUrl: paymentLink.checkoutUrl });
       return;
