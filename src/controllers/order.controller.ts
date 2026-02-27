@@ -13,7 +13,8 @@ interface AuthenticatedRequest extends Request {
   user?: AuthUser;
 }
 
-// Sử dụng (PayOS as any) để đánh lừa TypeScript, cho phép truyền 3 tham số
+// Khởi tạo PayOS bản v2 với 3 tham số chuỗi trực tiếp
+// Dùng (PayOS as any) để bỏ qua kiểm tra số lượng đối số của TS
 const payos = new (PayOS as any)(
   process.env.PAYOS_CLIENT_ID || "",
   process.env.PAYOS_API_KEY || "",
@@ -23,13 +24,14 @@ const payos = new (PayOS as any)(
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 // ==========================================
-// 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (GUEST CHECKOUT)
+// 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (HỖ TRỢ GUEST)
 // ==========================================
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   const { fullName, phone, address, paymentMethod, items } = req.body;
   const userId = (req as any).user?.id;
 
   try {
+    // Chống spam đặt đơn (15 giây)
     const recentOrder = await prisma.order.findFirst({
       where: { 
         phone: phone.trim(), 
@@ -42,6 +44,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Sinh mã đơn hàng an toàn cho PayOS (Safe Integer)
     const payosOrderCode = Number(String(Date.now()).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0'));
     
     let calculatedTotal = 0;
@@ -99,7 +102,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         items: payosItemsPayload 
       };
 
-      // FIX TRIỆT ĐỂ: Dùng Bracket notation để TS không check lỗi type
+      // Dùng Bracket notation để gọi hàm thực thi của SDK v2 mà không lo lỗi Type
       const paymentLink = await (payos as any)["createPaymentLink"](paymentData);
       res.status(200).json({ success: true, checkoutUrl: paymentLink.checkoutUrl });
       return;
@@ -117,13 +120,59 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 };
 
 // ==========================================
-// 3. PAYOS WEBHOOK
+// 2. ADMIN: DUYỆT ĐƠN (TRỪ KHO)
+// ==========================================
+export const adminApproveOrder = async (req: Request, res: Response): Promise<void> => {
+  const { orderId } = req.params;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: Number(orderId) },
+        include: { items: true }
+      });
+
+      if (!order) throw new Error("Không tìm thấy đơn hàng!");
+      if (order.status === "PAID_AND_CONFIRMED" || order.status === "CANCELLED") {
+        throw new Error("Đơn hàng đã được xử lý hoặc đã hủy.");
+      }
+
+      for (const item of order.items) {
+        if (!item.variantId) continue;
+        const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
+        if (!variant || variant.stock < item.quantity) {
+          throw new Error(`Sản phẩm "${item.productName}" không đủ tồn kho!`);
+        }
+      }
+
+      for (const item of order.items) {
+        if (!item.variantId) continue;
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stock: { decrement: item.quantity } }
+        });
+      }
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "PAID_AND_CONFIRMED" as any }
+      });
+    });
+
+    res.status(200).json({ success: true, message: "Duyệt đơn và trừ kho thành công." });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// 3. PAYOS WEBHOOK: XỬ LÝ KHI KHÁCH QUÉT QR XONG
 // ==========================================
 export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const webhookData = req.body;
     
-    // FIX TRIỆT ĐỂ: Dùng Bracket notation để gọi đúng hàm của SDK v2
+    // Gọi hàm verify của SDK v2 bằng Bracket notation
     const verifiedData = (payos as any)["verifyPaymentWebhookData"](webhookData);
 
     if (verifiedData.code === '00' || verifiedData.success) {
@@ -160,13 +209,13 @@ export const adminCancelOrder = async (req: Request, res: Response): Promise<voi
     }
 
     if (order.status === "PAID_AND_CONFIRMED") {
-      res.status(400).json({ success: false, message: "Đơn hàng đã giao và trừ kho không thể tự động hủy." });
+      res.status(400).json({ success: false, message: "Đơn hàng đã chốt không thể tự động hủy." });
       return;
     }
 
     await prisma.order.update({
       where: { id: Number(orderId) },
-      data: { status: "CANCELLED" }
+      data: { status: "CANCELLED" as any }
     });
 
     res.status(200).json({ success: true, message: "Đã hủy đơn hàng thành công." });
@@ -176,13 +225,13 @@ export const adminCancelOrder = async (req: Request, res: Response): Promise<voi
 };
 
 // ==========================================
-// 5. NGƯỜI DÙNG: TRA CỨU ĐƠN HÀNG (CHO CẢ KHÁCH GUEST)
+// 5. NGƯỜI DÙNG: TRA CỨU ĐƠN HÀNG
 // ==========================================
 export const trackOrder = async (req: Request, res: Response): Promise<void> => {
   const { orderCode, phone } = req.body;
 
   if (!orderCode || !phone) {
-    res.status(400).json({ success: false, message: "Vui lòng cung cấp mã đơn và số điện thoại." });
+    res.status(400).json({ success: false, message: "Vui lòng nhập mã đơn và số điện thoại." });
     return;
   }
 
@@ -198,11 +247,10 @@ export const trackOrder = async (req: Request, res: Response): Promise<void> => 
     });
 
     if (!order) {
-      res.status(404).json({ success: false, message: "Thông tin tra cứu không chính xác hoặc đơn hàng không tồn tại." });
+      res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
       return;
     }
 
-    // Chuyển đổi BigInt sang String trước khi gửi về giao diện
     const orderData = {
       ...order,
       orderCode: order.orderCode.toString(),
