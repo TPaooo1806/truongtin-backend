@@ -1,15 +1,12 @@
 // =========================================================================
-// 🔴 CHỈ DÁN ĐÈ PHẦN ĐẦU FILE (Từ dòng 1 đến trước hàm createOrder)
+// 🔴 BẮT ĐẦU FILE: src/controllers/order.controller.ts
 // =========================================================================
 
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 
-// 1. Lấy toàn bộ thư viện
+// 1. Lấy toàn bộ thư viện PayOS
 const PayOSLib = require("@payos/node");
-
-// 2. Tự động dò tìm đúng Constructor (Khuôn Class)
-// Nếu nó giấu trong thuộc tính PayOS, hoặc default, hoặc chính nó
 const PayOSClass = PayOSLib.PayOS || PayOSLib.default || PayOSLib;
 
 // ==========================================
@@ -25,19 +22,24 @@ interface AuthenticatedRequest extends Request {
   user?: AuthUser;
 }
 
-// 3. Khởi tạo PayOS cực kỳ an toàn
-const payos = new PayOSClass(
-  process.env.PAYOS_CLIENT_ID || "",
-  process.env.PAYOS_API_KEY || "",
-  process.env.PAYOS_CHECKSUM_KEY || ""
-);
+// 2. KHỞI TẠO TẮC KÈ HOA: Chấp mọi phiên bản v1 hay v2 trên Render
+const clientId = process.env.PAYOS_CLIENT_ID || "";
+const apiKey = process.env.PAYOS_API_KEY || "";
+const checksumKey = process.env.PAYOS_CHECKSUM_KEY || "";
+
+let payos: any;
+try {
+  // Thử khởi tạo bản v2 (truyền 3 chuỗi)
+  payos = new PayOSClass(clientId, apiKey, checksumKey);
+  // Nếu khởi tạo xong mà không thấy hàm nào, thử lại với cấu trúc v1 (truyền object)
+  if (!payos.createPaymentLink && !payos.paymentRequests) {
+    payos = new PayOSClass({ clientId, apiKey, checksumKey });
+  }
+} catch (error) {
+  payos = new PayOSClass({ clientId, apiKey, checksumKey });
+}
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
-
-// ==========================================
-// 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (FULL LOGIC)
-// ==========================================
-// (Từ hàm export const createOrder... trở xuống bạn GIỮ NGUYÊN)
 
 // ==========================================
 // 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (FULL LOGIC)
@@ -49,7 +51,6 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
   console.log(`[Order] Bắt đầu tạo đơn hàng cho khách: ${fullName} (${phone})`);
 
   try {
-    // A. CHẶN SPAM: Kiểm tra đơn hàng trùng lặp trong 15 giây
     const recentOrder = await prisma.order.findFirst({
       where: { 
         phone: phone.trim(), 
@@ -63,33 +64,27 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // B. SINH MÃ ĐƠN HÀNG: Đảm bảo mã là số nguyên an toàn cho PayOS
     const payosOrderCode = Number(String(Date.now()).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0'));
     
     let calculatedTotal = 0;
     const orderItemsToSave = [];
     const payosItemsPayload = [];
 
-    // C. KIỂM TRA GIỎ HÀNG & KHO
     for (const item of items) {
       const dbVariant = await prisma.productVariant.findUnique({
         where: { id: Number(item.variantId || item.id) },
         include: { product: true }
       });
 
-      if (!dbVariant) {
-        throw new Error(`Sản phẩm (ID: ${item.id}) không tồn tại trong hệ thống.`);
-      }
-
+      if (!dbVariant) throw new Error(`Sản phẩm (ID: ${item.id}) không tồn tại trong hệ thống.`);
       if (dbVariant.stock < Number(item.quantity)) {
-        throw new Error(`Sản phẩm "${dbVariant.product?.name}" chỉ còn ${dbVariant.stock} sản phẩm, không đủ cho đơn hàng của bạn.`);
+        throw new Error(`Sản phẩm "${dbVariant.product?.name}" chỉ còn ${dbVariant.stock} sản phẩm.`);
       }
 
       const itemPrice = dbVariant.price;
       const itemQuantity = Number(item.quantity);
       calculatedTotal += itemPrice * itemQuantity;
       
-      // Lưu thông tin chi tiết vào OrderItem (đã có productName để làm lịch sử)
       orderItemsToSave.push({
         variantId: dbVariant.id,
         productName: dbVariant.product?.name || "Sản phẩm không tên", 
@@ -97,7 +92,6 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         price: itemPrice 
       });
 
-      // Payload gửi sang cổng thanh toán
       payosItemsPayload.push({
         name: (dbVariant.product?.name || "SP").substring(0, 200),
         quantity: itemQuantity,
@@ -105,10 +99,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       });
     }
 
-    // D. LƯU VÀO DATABASE
     const newOrder = await prisma.order.create({
       data: {
-        userId: userId ? Number(userId) : undefined, // Nếu khách vãng lai thì để null
+        userId: userId ? Number(userId) : undefined,
         orderCode: payosOrderCode,
         customerName: fullName,
         phone: phone,
@@ -116,15 +109,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         total: calculatedTotal,
         paymentMethod: paymentMethod as any,
         status: (paymentMethod === "COD" ? "PENDING_COD" : "PENDING_PAYOS") as any,
-        items: {
-          create: orderItemsToSave
-        }
+        items: { create: orderItemsToSave }
       },
     });
 
     console.log(`[Order] Đã lưu đơn hàng #${newOrder.id} vào Database thành công.`);
 
-    // E. XỬ LÝ THANH TOÁN QR (PAYOS)
+    // E. XỬ LÝ THANH TOÁN QR (TỰ ĐỘNG DÒ HÀM THEO PHIÊN BẢN)
     if (paymentMethod === "PAYOS") {
       const paymentData = {
         orderCode: payosOrderCode,
@@ -135,15 +126,24 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         items: payosItemsPayload 
       };
 
-      // Bracket notation để bỏ qua lỗi Type
-      const paymentLink = await payos["createPaymentLink"](paymentData);
+      let checkoutUrl = "";
+
+      // Bẻ lái: Gọi hàm bản mới (v2), nếu không có thì gọi hàm bản cũ (v1)
+      if (typeof payos.createPaymentLink === "function") {
+        const paymentLink = await payos.createPaymentLink(paymentData);
+        checkoutUrl = paymentLink.checkoutUrl;
+      } else if (payos.paymentRequests && typeof payos.paymentRequests.create === "function") {
+        const paymentLink = await payos.paymentRequests.create(paymentData);
+        checkoutUrl = paymentLink.checkoutUrl;
+      } else {
+        throw new Error("Lỗi PayOS: Không tìm thấy hàm tạo link ở cả 2 phiên bản!");
+      }
       
-      console.log(`[PayOS] Đã tạo link thanh toán QR: ${paymentLink.checkoutUrl}`);
-      res.status(200).json({ success: true, checkoutUrl: paymentLink.checkoutUrl });
+      console.log(`[PayOS] Đã tạo link thanh toán QR: ${checkoutUrl}`);
+      res.status(200).json({ success: true, checkoutUrl });
       return;
     }
 
-    // F. PHẢN HỒI CHO THANH TOÁN COD
     res.status(200).json({ 
       success: true, 
       message: "Đặt hàng thành công. Trường Tín sẽ gọi điện xác nhận sớm nhất.",    
@@ -157,7 +157,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 };
 
 // ==========================================
-// 2. ADMIN: DUYỆT ĐƠN & TRỪ KHO (TRANSACTION)
+// 2. ADMIN: DUYỆT ĐƠN & TRỪ KHO
 // ==========================================
 export const adminApproveOrder = async (req: Request, res: Response): Promise<void> => {
   const { orderId } = req.params;
@@ -174,7 +174,6 @@ export const adminApproveOrder = async (req: Request, res: Response): Promise<vo
         throw new Error("Đơn hàng này đã được xử lý xong hoặc đã bị hủy.");
       }
 
-      // Kiểm tra kho lần cuối trước khi trừ
       for (const item of order.items) {
         if (!item.variantId) continue;
         const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
@@ -183,7 +182,6 @@ export const adminApproveOrder = async (req: Request, res: Response): Promise<vo
         }
       }
 
-      // Trừ kho hàng loạt
       for (const item of order.items) {
         if (!item.variantId) continue;
         await tx.productVariant.update({
@@ -192,7 +190,6 @@ export const adminApproveOrder = async (req: Request, res: Response): Promise<vo
         });
       }
 
-      // Cập nhật trạng thái cuối cùng
       await tx.order.update({
         where: { id: order.id },
         data: { status: "PAID_AND_CONFIRMED" as any }
@@ -206,16 +203,25 @@ export const adminApproveOrder = async (req: Request, res: Response): Promise<vo
 };
 
 // ==========================================
-// 3. PAYOS WEBHOOK: NHẬN TÍN HIỆU TIỀN VỀ
+// 3. PAYOS WEBHOOK: TỰ ĐỘNG BẺ LÁI THEO PHIÊN BẢN
 // ==========================================
 export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const webhookData = req.body;
+    let verifiedData;
     
-    // Gọi hàm verify của SDK v2
-    const verifiedData = payos["verifyPaymentWebhookData"](webhookData);
+    // Bẻ lái: Gọi hàm bản mới (v2), nếu không có thì gọi hàm bản cũ (v1)
+    if (typeof payos.verifyPaymentWebhookData === "function") {
+      verifiedData = payos.verifyPaymentWebhookData(webhookData);
+    } else if (payos.webhooks && typeof payos.webhooks.verify === "function") {
+      verifiedData = payos.webhooks.verify(webhookData);
+    } else {
+      throw new Error("Lỗi PayOS: Không tìm thấy hàm verify.");
+    }
 
-    if (verifiedData.code === '00' || verifiedData.success) {
+    const isSuccess = verifiedData.code === '00' || verifiedData.success || verifiedData.status === 'PAID';
+
+    if (isSuccess) {
       const payosOrderCode = verifiedData.orderCode;
 
       const order = await prisma.order.findUnique({
@@ -283,9 +289,7 @@ export const trackOrder = async (req: Request, res: Response): Promise<void> => 
         orderCode: BigInt(orderCode), 
         phone: phone.trim() 
       },
-      include: {
-        items: true
-      }
+      include: { items: true }
     });
 
     if (!order) {
@@ -295,7 +299,7 @@ export const trackOrder = async (req: Request, res: Response): Promise<void> => 
 
     const orderData = {
       ...order,
-      orderCode: order.orderCode.toString(), // Chuyển BigInt về string cho Frontend
+      orderCode: order.orderCode.toString(),
     };
 
     res.status(200).json({ success: true, data: orderData });
@@ -311,9 +315,7 @@ export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response
   try {
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: true
-      }
+      include: { items: true }
     });
 
     const safeOrders = orders.map(order => ({
@@ -326,6 +328,7 @@ export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response
     res.status(500).json({ success: false, message: "Không thể tải danh sách đơn hàng." });
   }
 };
+
 // =========================================================================
 // 🔴 KẾT THÚC FILE
 // =========================================================================
