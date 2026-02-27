@@ -3,33 +3,42 @@ import * as productController from '../controllers/product.controller';
 import * as categoryController from '../controllers/category.controller';
 import * as searchController from '../controllers/search.controller';
 import * as reviewController from '../controllers/review.controller';
-import { verifyToken } from '../middlewares/auth.middleware';
+
+// BƯỚC 1: QUAN TRỌNG - Import thêm isAdmin vào đây
+import { verifyToken, isAdmin } from '../middlewares/auth.middleware'; 
 
 const router = Router();
 
 // --- NHÁNH DANH MỤC ---
+// Khách hàng xem danh mục -> Không cần khóa
 router.get('/categories', categoryController.getCategories);
-router.post('/categories', categoryController.createCategory);
-router.delete('/categories/:id', categoryController.deleteCategory);
+
+// Admin Thêm, Xóa danh mục -> BẮT BUỘC KHÓA
+router.post('/categories', verifyToken, isAdmin, categoryController.createCategory);
+router.delete('/categories/:id', verifyToken, isAdmin, categoryController.deleteCategory);
+
 
 // --- NHÁNH TÌM KIẾM (ĐẶT TRƯỚC NHÁNH SẢN PHẨM) ---
-// Khớp với Frontend: axios.get('/api/search/suggest')
+// Khách hàng tìm kiếm -> Không cần khóa
 router.get('/search/suggest', searchController.suggestProducts);
 
-// --- NHÁNH SẢN PHẨM ---
-// Lưu ý: Đổi tất cả về tiền tố /products để khớp với Frontend gọi
-router.get('/products', productController.getProducts);
-router.get('/products/:slug', productController.getProductBySlug); // Route có :slug nên phải nằm dưới cùng của nhánh GET
-router.post('/products', productController.createProduct);      // Khớp với api.post('/api/products')
-router.put('/products/:id', productController.updateProduct);    // Khớp với api.put('/api/products/...')
-router.delete('/products/:id', productController.deleteProduct); // Khớp với api.delete('/api/products/...')
 
-// 1. Route lấy bình luận (Ai cũng xem được, không cần token)
-// Trùng khớp với frontend gọi: axios.get('/api/products/${product.id}/reviews')
+// --- NHÁNH SẢN PHẨM ---
+// Khách hàng xem sản phẩm -> Không cần khóa
+router.get('/products', productController.getProducts);
+router.get('/products/:slug', productController.getProductBySlug); 
+
+// Admin Thêm, Sửa, Xóa sản phẩm -> BẮT BUỘC KHÓA
+router.post('/products', verifyToken, isAdmin, productController.createProduct);      
+router.put('/products/:id', verifyToken, isAdmin, productController.updateProduct);    
+router.delete('/products/:id', verifyToken, isAdmin, productController.deleteProduct); 
+
+
+// --- NHÁNH BÌNH LUẬN ---
+// 1. Lấy bình luận (Ai cũng xem được, không cần token)
 router.get('/products/:id/reviews', reviewController.getProductReviews);
 
-// 2. Route gửi bình luận (BẮT BUỘC ĐÃ ĐĂNG NHẬP -> Gọi middleware verifyToken)
-// Trùng khớp với frontend gọi: axios.post('/api/reviews', ...)
+// 2. Gửi bình luận (Chỉ cần đăng nhập là được, không cần phải là Admin)
 router.post('/reviews', verifyToken, reviewController.createReview);
 
 export default router;
