@@ -77,18 +77,25 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     }
 
     // Tạo đơn hàng (Trạng thái PENDING)
-    const newOrder = await prisma.order.create({
-      data: {
-        userId: userId || null,
-        orderCode: payosOrderCode,
-        customerName: fullName,
-        phone: phone,
-        address: address,
-        total: calculatedTotal,
-        status: paymentMethod === "COD" ? "PENDING_COD" : "PENDING_PAYOS",
-        items: { create: orderItemsToSave }
-      },
-    });
+  const newOrder = await prisma.order.create({
+    data: {
+      userId: userId || null,
+      orderCode: payosOrderCode,
+      customerName: fullName,
+      phone: phone,
+      address: address,
+      total: calculatedTotal,
+      status: paymentMethod === "COD" ? "PENDING_COD" : "PENDING_PAYOS",
+      items: {
+        create: items.map((item: any) => ({
+          variantId: Number(item.variantId || item.id),
+          productName: item.name, // LƯU TÊN SP VÀO ĐÂY ĐỂ HIỂN THỊ CHI TIẾT ĐƠN
+          quantity: Number(item.quantity),
+          price: Number(item.price)
+        }))
+      }
+    }
+  });
 
     // Nếu chọn PayOS -> Trả về link thanh toán
     if (paymentMethod === "PAYOS") {
@@ -188,7 +195,7 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
       if (order.status === "PENDING_PAYOS") {
         await prisma.order.update({
           where: { orderCode: BigInt(payosOrderCode) },
-          data: { status: "PAID_PENDING_CONFIRM" } 
+          data: { status: "PENDING_PAYOS" } 
         });
         console.log(`[Webhook Success] Đơn hàng ${payosOrderCode} đã thanh toán.`);
       } else {
