@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
-import * as XLSX from 'xlsx'; // <-- ĐÃ THÊM THƯ VIỆN ĐỌC EXCEL
+import * as XLSX from 'xlsx'; 
+import ExcelJS from 'exceljs';
 
 interface VariantInput {
   sku: string;
@@ -175,31 +176,72 @@ export const getProductBySlug = async (req: Request, res: Response): Promise<voi
 };
 
 // =======================================================
-// ĐÃ THÊM: HÀM TẢI FORM MẪU EXCEL
+// 1. API TẢI FORM MẪU EXCEL (BẢN PRO CÓ ĐỊNH DẠNG & DROPDOWN)
 // =======================================================
 export const getImportTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
-    const templateData = [
-      {
-        "Tên sản phẩm": "Ống nhựa PVC Bình Minh Phi 21",
-        "Danh mục": "Ống nước",
-        "Đơn vị tính": "Cây",
-        "Giá bán": 25000,
-        "Tồn kho": 100,
-        "Mô tả": "Sản phẩm chính hãng",
-        "Link ảnh": "" // Để trống theo yêu cầu của bạn
-      }
+    const categories = await prisma.category.findMany({ select: { name: true } });
+    const workbook = new ExcelJS.Workbook();
+
+    // TẠO SHEET ẨN CHỨA DATA DROPDOWN (Chống lỗi 255 ký tự của Excel)
+    const dataSheet = workbook.addWorksheet("Data", { state: 'hidden' });
+    categories.forEach((c, index) => {
+      dataSheet.getCell(`A${index + 1}`).value = c.name;
+    });
+
+    const worksheet = workbook.addWorksheet('Products', {
+      views: [{ state: 'frozen', ySplit: 1 }] // Đóng băng Header
+    });
+
+    worksheet.columns = [
+      { header: 'Tên sản phẩm *', key: 'name', width: 35 },
+      { header: 'Danh mục *', key: 'category', width: 25 },
+      { header: 'Đơn vị tính', key: 'unit', width: 15 },
+      { header: 'Giá bán *', key: 'price', width: 15 },
+      { header: 'Tồn kho *', key: 'stock', width: 15 },
+      { header: 'Mô tả', key: 'desc', width: 50 },
+      { header: 'Link ảnh', key: 'images', width: 30 },
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+    // FORMAT HEADER
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, size: 14 };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
 
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    // DATA MẪU
+    worksheet.addRow({
+      name: 'Ống nhựa PVC Bình Minh Phi 21',
+      category: categories[0]?.name || 'Ống nước',
+      unit: 'Cây', price: 25000, stock: 100,
+      desc: 'Sản phẩm chính hãng', images: ''
+    }).eachCell((cell) => {
+      cell.font = { size: 12 };
+      cell.alignment = { vertical: 'middle' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
 
-    res.setHeader('Content-Disposition', 'attachment; filename="TruongTin_Template_Import.xlsx"');
+    // GÁN DROPDOWN (Trỏ về Sheet ẩn)
+    for (let i = 2; i <= 2000; i++) {
+      worksheet.getCell(`B${i}`).dataValidation = {
+        type: 'list', allowBlank: false,
+        formulae: [`Data!$A$1:$A$${categories.length || 1}`],
+        showErrorMessage: true, errorTitle: 'Sai danh mục', error: 'Vui lòng chọn danh mục có sẵn!'
+      };
+      // Validate Số
+      worksheet.getCell(`D${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+      worksheet.getCell(`E${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+    }
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.send(buffer);
+    res.setHeader('Content-Disposition', 'attachment; filename="TruongTin_Template_Import.xlsx"');
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
     console.error("Lỗi tạo form mẫu:", error);
     res.status(500).json({ success: false, message: "Lỗi server" });
@@ -207,7 +249,7 @@ export const getImportTemplate = async (req: Request, res: Response): Promise<vo
 };
 
 // =======================================================
-// ĐÃ THÊM: HÀM XỬ LÝ IMPORT FILE EXCEL
+// 2. API XỬ LÝ IMPORT (BATCHING CONCURRENT + NORMALIZE + LIMIT)
 // =======================================================
 export const importProductsFromExcel = async (req: Request | any, res: Response): Promise<void> => {
   try {
@@ -221,90 +263,91 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
     const sheet = workbook.Sheets[sheetName];
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
+    // IMPROVEMENT 3: GIỚI HẠN FILE SIZE & DÒNG
     if (rows.length === 0) {
       res.status(400).json({ success: false, message: "File Excel trống" });
       return;
     }
+    if (rows.length > 10000) {
+      res.status(400).json({ success: false, message: "File quá lớn! Giới hạn tối đa 10.000 dòng/lần." });
+      return;
+    }
 
-    // Lấy trước dữ liệu Category và Slug để tra cứu nhanh
     const categories = await prisma.category.findMany();
     const categoryMap = new Map(categories.map(c => [c.name.trim().toLowerCase(), c.id]));
     
     const existingProducts = await prisma.product.findMany({ select: { slug: true } });
     const existingSlugs = new Set(existingProducts.map(p => p.slug));
 
+    // IMPROVEMENT 2: LÀM SẠCH VÀ CHUẨN HÓA INPUT
+    const cleanStr = (str: any) => str ? str.toString().replace(/[\u200B-\u200D\uFEFF]/g, '').trim() : '';
+    const generateSlug = (str: string) => cleanStr(str).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+
     let successCount = 0;
     let errors: any[] = [];
+    const validPayloads: any[] = [];
 
-    const generateSlug = (str: string) => {
-      return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-    };
-
-    // Lặp qua từng dòng để lưu
+    // BƯỚC 1: KIỂM TRA TOÀN BỘ DATA ĐỂ ĐƯA VÀO HÀNG ĐỢI
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNumber = i + 2; 
 
-      const name = row["Tên sản phẩm"]?.toString().trim();
-      const catName = row["Danh mục"]?.toString().trim().toLowerCase();
-      const unit = row["Đơn vị tính"]?.toString().trim() || "Cái";
-      const price = Number(row["Giá bán"]) || 0;
-      const stock = Number(row["Tồn kho"]) || 0;
-      const description = row["Mô tả"]?.toString() || "";
-      const imagesStr = row["Link ảnh"]?.toString() || "";
+      const name = cleanStr(row["Tên sản phẩm *"]);
+      const catName = cleanStr(row["Danh mục *"]).toLowerCase();
+      const unit = cleanStr(row["Đơn vị tính"]) || "Cái";
+      const price = Number(row["Giá bán *"]) || 0;
+      const stock = Number(row["Tồn kho *"]) || 0;
+      const description = cleanStr(row["Mô tả"]);
+      const imagesStr = cleanStr(row["Link ảnh"]);
 
-      if (!name) {
-        errors.push({ row: rowNumber, reason: "Thiếu tên sản phẩm" });
-        continue;
-      }
-
+      if (!name) { errors.push({ row: rowNumber, reason: "Thiếu tên sản phẩm" }); continue; }
+      
       const categoryId = categoryMap.get(catName);
-      if (!categoryId) {
-        errors.push({ row: rowNumber, reason: `Danh mục '${row["Danh mục"]}' không tồn tại` });
-        continue;
-      }
+      if (!categoryId) { errors.push({ row: rowNumber, reason: `Danh mục '${row["Danh mục *"]}' không tồn tại` }); continue; }
+      if (price <= 0) { errors.push({ row: rowNumber, reason: "Giá bán phải lớn hơn 0" }); continue; }
 
       const slug = generateSlug(name);
-      if (existingSlugs.has(slug)) {
-        errors.push({ row: rowNumber, reason: `Sản phẩm đã tồn tại (Trùng tên)` });
-        continue;
-      }
+      if (existingSlugs.has(slug)) { errors.push({ row: rowNumber, reason: `Sản phẩm đã tồn tại (Trùng tên)` }); continue; }
 
-      // Tự động tạo SKU ngẫu nhiên
-      const randomSku = `SP-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+      // Ghi nhận trước để check trùng các dòng bên dưới trong cùng 1 file Excel
+      existingSlugs.add(slug); 
 
-      const imagesArray = imagesStr 
-        ? imagesStr.split(';').map((url: string) => ({ url: url.trim() })).filter((img: any) => img.url)
-        : [];
+      const randomSku = `SP-${Date.now().toString().slice(-5)}-${Math.floor(Math.random() * 1000)}`;
+      const imagesArray = imagesStr ? imagesStr.split(';').map((url: string) => ({ url: url.trim() })).filter((img: any) => img.url) : [];
 
-      try {
-        await prisma.product.create({
-          data: {
-            name,
-            slug,
-            description,
-            unit,
-            categoryId,
-            variants: {
-              create: [{
-                name: "Mặc định",
-                sku: randomSku,
-                price,
-                stock
-              }]
-            },
-            images: {
-              create: imagesArray
-            }
-          }
-        });
-        
-        existingSlugs.add(slug);
-        successCount++;
-      } catch (err) {
-        console.error(`Lỗi dòng ${rowNumber}:`, err);
-        errors.push({ row: rowNumber, reason: "Lỗi lưu Database (Sai định dạng chữ/số)" });
-      }
+      validPayloads.push({
+        rowNumber,
+        data: {
+          name, slug, description, unit, categoryId,
+          variants: { create: [{ name: "Mặc định", sku: randomSku, price, stock }] },
+          images: { create: imagesArray }
+        }
+      });
+    }
+
+    // BƯỚC 2: IMPROVEMENT 1 - BATCH INSERT CONCURRENT (Chạy song song 50 lệnh)
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < validPayloads.length; i += CHUNK_SIZE) {
+      const chunk = validPayloads.slice(i, i + CHUNK_SIZE);
+      
+      // Khởi tạo các Promise chạy độc lập
+      const promises = chunk.map(item => 
+        prisma.product.create({ data: item.data })
+          .then(() => ({ status: 'fulfilled', rowNumber: item.rowNumber }))
+          .catch((err) => ({ status: 'rejected', rowNumber: item.rowNumber, error: err }))
+      );
+
+      // Chờ toàn bộ 50 lệnh trong Chunk này chạy xong
+      const results = await Promise.all(promises);
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          successCount++;
+        } else if (result.status === 'rejected' && 'error' in result) {
+          console.error(`Lỗi DB dòng ${result.rowNumber}:`, result.error);
+          errors.push({ row: result.rowNumber, reason: "Lỗi hệ thống khi lưu (Kiểm tra lại định dạng/ký tự lạ)" });
+        }
+      });
     }
 
     res.status(200).json({
