@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import multer from 'multer'; // <-- ĐÃ THÊM MULTER
+import multer from 'multer'; 
 import * as productController from '../controllers/product.controller';
 import * as categoryController from '../controllers/category.controller';
 import * as searchController from '../controllers/search.controller';
 import * as reviewController from '../controllers/review.controller';
-
+import * as reportController from '../controllers/report.controller';
 import { verifyToken, isAdmin } from '../middlewares/auth.middleware'; 
 
 // Cấu hình multer lưu file vào RAM (bộ nhớ tạm)
@@ -41,5 +41,6 @@ router.delete('/products/:id', verifyToken, isAdmin, productController.deletePro
 // --- NHÁNH BÌNH LUẬN ---
 router.get('/products/:id/reviews', reviewController.getProductReviews);
 router.post('/reviews', verifyToken, reviewController.createReview);
-
+// --- NHÁNH BÁO CÁO DOANH THU & TỒN KHO ---
+router.get('/reports/dashboard', verifyToken, isAdmin, reportController.getDashboardStats);
 export default router;
