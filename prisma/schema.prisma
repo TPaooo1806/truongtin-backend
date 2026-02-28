@@ -174,3 +174,12 @@ model OrderItem {
   @@index([orderId])
   @@index([variantId])
 }
+
+model Contact {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  message   String
+  status    String   @default("PENDING") // PENDING (chưa xử lý), RESOLVED (đã liên hệ)
+  createdAt DateTime @default(now())
+}
