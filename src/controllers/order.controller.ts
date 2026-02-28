@@ -1,7 +1,3 @@
-// =========================================================================
-// 🔴 BẮT ĐẦU FILE: src/controllers/order.controller.ts
-// =========================================================================
-
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 
@@ -121,7 +117,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         orderCode: payosOrderCode,
         amount: calculatedTotal,
         description: `TT Don Hang #${payosOrderCode}`,
-        cancelUrl: `${FRONTEND_URL}/cart`,
+        cancelUrl: `${FRONTEND_URL}/order/cancel`,
         returnUrl: `${FRONTEND_URL}/order/success`,
         items: payosItemsPayload 
       };
@@ -328,7 +324,3 @@ export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response
     res.status(500).json({ success: false, message: "Không thể tải danh sách đơn hàng." });
   }
 };
-
-// =========================================================================
-// 🔴 KẾT THÚC FILE
-// =========================================================================
