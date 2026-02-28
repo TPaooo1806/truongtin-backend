@@ -45,3 +45,18 @@ export const getAllContacts = async (req: Request, res: Response): Promise<void>
     res.status(500).json({ success: false, message: "Không tải được danh sách liên hệ." });
   }
 };
+// ==========================================
+// 3. ADMIN: ĐÁNH DẤU ĐÃ XỬ LÝ LIÊN HỆ
+// ==========================================
+export const resolveContact = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  try {
+    await prisma.contact.update({
+      where: { id: Number(id) },
+      data: { status: "RESOLVED" } // Đổi trạng thái thành Đã xử lý
+    });
+    res.status(200).json({ success: true, message: "Đã đánh dấu xử lý!" });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Lỗi khi cập nhật trạng thái." });
+  }
+};
