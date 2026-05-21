@@ -6,28 +6,27 @@ export const verifyToken = (
   res: Response,
   next: NextFunction
 ) => {
-  const authHeader = req.headers.authorization;
+  // [BM-02] Ƭu tiên đọc token từ httpOnly Cookie
+  // Fallback về Authorization header để tương thích ngược với các client cũ
+  let token = req.cookies?.token;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
+
+  if (!token) {
     return res.status(401).json({ message: 'Không có token' });
   }
 
-  const token = authHeader.split(' ')[1];
-
- try {
-  const JWT_SECRET = process.env.JWT_SECRET as string;
-  const decoded = jwt.verify(token, JWT_SECRET);
-    
+  try {
+    const JWT_SECRET = process.env.JWT_SECRET as string;
+    const decoded = jwt.verify(token, JWT_SECRET);
     (req as any).user = decoded;
     next();
   } catch (error) {
-    // THÊM DÒNG CONSOLE.LOG NÀY ĐỂ XEM LỖI THỰC SỰ LÀ GÌ
-    console.error("==== LỖI GIẢI MÃ TOKEN ====");
-    console.error(error); 
-    console.error("Token nhận được:", token);
-    console.error("JWT_SECRET đang dùng:", process.env.JWT_SECRET);
-    console.error("===========================");
-    
     return res.status(401).json({ message: 'Token không hợp lệ' });
   }
 };

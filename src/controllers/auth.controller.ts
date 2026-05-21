@@ -54,21 +54,29 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Số điện thoại hoặc mật khẩu không đúng!' });
     }
 
-    // Tạo Token
+    // Tạo Token (7 ngày)
     const token = jwt.sign(
       { id: user.id, role: user.role },
       JWT_SECRET,
-      { expiresIn: '1h' } // Đăng nhập tồn tại 
+      { expiresIn: '7d' }
     );
 
-    // Xóa password khỏi kết quả trả về Frontend cho an toàn
+    // Xóa password khỏi kết quả trả về
     const { password: _, ...userData } = user;
+
+    // [BM-02] Lưu token vào httpOnly Cookie thay vì trả về body
+    // httpOnly = JS không đọc được -> chặn hoàn toàn XSS đánh cắp token
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Chỉ HTTPS khi production
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ngày
+    });
 
     res.status(200).json({
       success: true,
       message: 'Đăng nhập thành công!',
-      token,
-      data: userData
+      data: userData // Trả user info để Frontend lưu, KHÔNG trả token nữa
     });
   } catch (error) {
     console.error("Lỗi đăng nhập:", error);

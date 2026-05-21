@@ -183,3 +183,14 @@ model Contact {
   status    String   @default("PENDING") // PENDING (chưa xử lý), RESOLVED (đã liên hệ)
   createdAt DateTime @default(now())
 }
+
+// ================= BANNER =================
+
+model Banner {
+  id        Int      @id @default(autoincrement())
+  title     String   // Tên banner để bạn dễ quản lý (Vd: "Sale 30/4")
+  imageUrl  String   // Link ảnh từ Cloudinary
+  link      String?  // Bấm vào banner thì dẫn đi đâu? (Tùy chọn)
+  isActive  Boolean  @default(true) // Bật tắt hiển thị
+  createdAt DateTime @default(now())
+}
