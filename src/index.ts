@@ -19,8 +19,25 @@ const PORT = process.env.PORT || 5000;
 // CORS
 // ==========================================
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+// Fix CORS linh hoạt hơn để Vercel (kể cả các bản preview) đều gọi được
+const allowedOrigins = [
+  frontendUrl,
+  'http://localhost:3000',
+  'https://truongtin-frontend.vercel.app'
+];
+
 app.use(cors({
-  origin: frontendUrl,
+  origin: function (origin, callback) {
+    // Cho phép requests không có origin (ví dụ server-to-server hoặc Postman)
+    if (!origin) return callback(null, true);
+    
+    // Nếu origin nằm trong danh sách cho phép hoặc là domain của Vercel
+    if (allowedOrigins.includes(origin) || origin.endsWith('vercel.app')) {
+      return callback(null, true);
+    }
+    
+    return callback(new Error('CORS Policy: Origin not allowed'), false);
+  },
   credentials: true
 }));
 
