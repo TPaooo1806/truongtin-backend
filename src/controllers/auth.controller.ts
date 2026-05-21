@@ -68,8 +68,8 @@ export const login = async (req: Request, res: Response) => {
     // httpOnly = JS không đọc được -> chặn hoàn toàn XSS đánh cắp token
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Chỉ HTTPS khi production
-      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production', // Phải là true khi sameSite='none'
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' để cho phép gửi cookie từ Vercel qua Render
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ngày
     });
 

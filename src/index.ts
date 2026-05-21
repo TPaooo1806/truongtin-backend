@@ -28,6 +28,13 @@ app.use(express.json());
 app.use(cookieParser()); // Cho phép đọc Cookie từ request (dùng cho httpOnly JWT)
 
 // ==========================================
+// Cấu hình Trust Proxy (QUAN TRỌNG KHI DEPLOY RENDER/VERCEL)
+// Nếu không có dòng này, Rate Limit sẽ lấy IP của Load Balancer
+// và block TOÀN BỘ người dùng truy cập.
+// ==========================================
+app.set('trust proxy', 1);
+
+// ==========================================
 // [RL-01] RATE LIMITING — Chống Spam & DDoS nhẹ
 // Giới hạn 150 request / 1 phút / 1 IP cho toàn bộ /api
 // Kẻ tấn công hoặc bot spam sẽ nhận 429 Too Many Requests
