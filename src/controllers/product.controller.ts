@@ -50,7 +50,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
             select: { url: true } 
           },
           variants: {
-            select: { sku: true, price: true, stock: true, attributeValue: true }
+            select: { sku: true, price: true, stock: true, name: true }
           }
         }
       }),
