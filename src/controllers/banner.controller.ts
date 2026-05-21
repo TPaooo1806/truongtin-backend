@@ -14,7 +14,18 @@ export const getBanners = async (req: Request, res: Response) => {
 // 2. LẤY BANNER ĐANG HOẠT ĐỘNG (Dành cho trang chủ của Khách)
 export const getActiveBanners = async (req: Request, res: Response) => {
   try {
-    const banners = await prisma.banner.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
+    const { position } = req.query;
+    const whereClause: any = { isActive: true };
+    
+    // Nếu có truyền position thì lọc theo vị trí
+    if (position) {
+      whereClause.position = String(position);
+    }
+    
+    const banners = await prisma.banner.findMany({ 
+      where: whereClause, 
+      orderBy: { createdAt: 'desc' } 
+    });
     res.json({ success: true, data: banners });
   } catch (error) {
     res.status(500).json({ success: false, message: "Lỗi lấy banner hoạt động" });
@@ -24,9 +35,14 @@ export const getActiveBanners = async (req: Request, res: Response) => {
 // 3. THÊM BANNER MỚI
 export const createBanner = async (req: Request, res: Response) => {
   try {
-    const { title, imageUrl, link } = req.body;
+    const { title, imageUrl, link, position } = req.body;
     const newBanner = await prisma.banner.create({
-      data: { title, imageUrl, link: link || "" }
+      data: { 
+        title, 
+        imageUrl, 
+        link: link || "",
+        position: position || "HOME_MAIN"
+      } as any
     });
     res.json({ success: true, data: newBanner });
   } catch (error) {

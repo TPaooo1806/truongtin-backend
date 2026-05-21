@@ -76,7 +76,8 @@ export const login = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       message: 'Đăng nhập thành công!',
-      data: userData // Trả user info để Frontend lưu, KHÔNG trả token nữa
+      token: token, // [AUDIT FIX]: Trả thêm token cho trường hợp trình duyệt chặn Cookie 3rd-party
+      data: userData 
     });
   } catch (error) {
     console.error("Lỗi đăng nhập:", error);

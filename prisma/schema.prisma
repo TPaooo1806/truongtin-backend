@@ -191,6 +191,7 @@ model Banner {
   title     String   // Tên banner để bạn dễ quản lý (Vd: "Sale 30/4")
   imageUrl  String   // Link ảnh từ Cloudinary
   link      String?  // Bấm vào banner thì dẫn đi đâu? (Tùy chọn)
+  position  String   @default("HOME_MAIN") // Vị trí hiển thị (HOME_MAIN, HOME_SUB, SIDEBAR)
   isActive  Boolean  @default(true) // Bật tắt hiển thị
   createdAt DateTime @default(now())
 }

@@ -27,6 +27,19 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     if (category) {
       whereCondition.category = { slug: category };
     }
+    
+    // Hỗ trợ lấy theo ID Danh mục trực tiếp (Dành cho chức năng Sản phẩm liên quan)
+    const categoryId = req.query.categoryId as string | undefined;
+    if (categoryId) {
+      whereCondition.categoryId = Number(categoryId);
+    }
+
+    // [AUDIT-FIX] Bắt buộc: Loại trừ sản phẩm đang xem ra khỏi danh sách
+    const excludeId = req.query.excludeId as string | undefined;
+    if (excludeId) {
+      whereCondition.id = { not: Number(excludeId) };
+    }
+
    if (q) {
   // Băm từ khóa thành mảng các từ (vd: "ống pvc" -> ["ống", "pvc"])
   const searchWords = q.trim().split(/\s+/);
@@ -45,13 +58,8 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
         orderBy: { createdAt: 'desc' },
         include: {
           category: { select: { id: true, name: true, slug: true } }, 
-          images: {
-            take: 1, // Ra ngoài danh sách chỉ cần 1 ảnh Thumbnail, không kéo tất cả ảnh
-            select: { url: true } 
-          },
-          variants: {
-            select: { sku: true, price: true, stock: true, name: true }
-          }
+          images: true,
+          variants: true
         }
       }),
       prisma.product.count({

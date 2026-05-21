@@ -77,8 +77,9 @@ const authLimiter = rateLimit({
   }
 });
 
-app.use('/api', apiLimiter);
-app.use('/api/auth', authLimiter);
+// Bỏ comment tạm thời để test xem có phải Rate Limiting làm treo API không
+// app.use('/api', apiLimiter);
+// app.use('/api/auth', authLimiter);
 
 // ==========================================
 // Route kiểm tra server
