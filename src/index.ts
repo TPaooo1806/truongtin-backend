@@ -9,8 +9,10 @@ import authRoutes from './routes/auth.routes';
 import contactRoutes from "./routes/contact.route";
 import uploadRoute from './routes/upload.route';
 import bannerRoutes from './routes/banner.routes';
+import chatRoutes from './routes/chat.route';
 import { verifyToken, isAdmin } from './middlewares/auth.middleware';
 import { getAdminNotifications } from "./controllers/notification.controller";
+import catalogCacheService from './services/catalogCache.service';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -103,6 +105,14 @@ app.use('/api/upload', uploadRoute);
 
 // Route cho banner (đã có guard bên trong)
 app.use('/api/banners', bannerRoutes);
+
+// Route cho AI Chatbot
+app.use('/api/chat', chatRoutes);
+
+// Khởi tạo RAM Cache cho AI Chatbot
+catalogCacheService.init().then(() => {
+  console.log("✅ Catalog Cache Service initialized.");
+});
 
 // [BM-06] Thêm guard Admin cho Notification API
 // Trước đây không bảo vệ — ai cũng gọi được để xem thông tin đơn hàng khách
