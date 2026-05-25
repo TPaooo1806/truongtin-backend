@@ -29,9 +29,11 @@ enum OrderStatus {
 model Category {
   id        Int      @id @default(autoincrement())
   name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  slug         String   @unique
+  showOnHome   Boolean  @default(false)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   products  Product[]
 
@@ -194,4 +196,26 @@ model Banner {
   position  String   @default("HOME_MAIN") // Vị trí hiển thị (HOME_MAIN, HOME_SUB, SIDEBAR)
   isActive  Boolean  @default(true) // Bật tắt hiển thị
   createdAt DateTime @default(now())
+}
+
+// ================= QUOTE REQUEST (BÁO GIÁ ZALO) =================
+
+model QuoteRequest {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  customerName String
+  phone        String
+  items        Json
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ================= GUEST CART (GIỎ HÀNG TẠM) =================
+
+model GuestCart {
+  id        Int      @id @default(autoincrement())
+  phone     String   @unique
+  cartData  Json
+  updatedAt DateTime @updatedAt
 }

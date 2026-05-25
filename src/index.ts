@@ -6,10 +6,14 @@ import rateLimit from 'express-rate-limit';
 import orderRoutes from "./routes/order.routes";
 import apiRoutes from './routes/product.routes'; 
 import authRoutes from './routes/auth.routes'; 
+import categoryRoutes from './routes/category.routes';
 import contactRoutes from "./routes/contact.route";
 import uploadRoute from './routes/upload.route';
 import bannerRoutes from './routes/banner.routes';
 import chatRoutes from './routes/chat.route';
+import quoteRoutes from './routes/quote.route';
+import guestCartRoutes from './routes/guestcart.route';
+import cartRoutes from './routes/cart.route';
 import { verifyToken, isAdmin } from './middlewares/auth.middleware';
 import { getAdminNotifications } from "./controllers/notification.controller";
 import catalogCacheService from './services/catalogCache.service';
@@ -94,6 +98,7 @@ app.get('/', (req: Request, res: Response) => {
 // Routes chính
 // ==========================================
 app.use('/api', apiRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/orders", orderRoutes);
 
@@ -108,6 +113,15 @@ app.use('/api/banners', bannerRoutes);
 
 // Route cho AI Chatbot
 app.use('/api/chat', chatRoutes);
+
+// Route cho Báo giá Zalo (Quote Request)
+app.use('/api/quotes', quoteRoutes);
+
+// Route cho Giỏ hàng tạm (Guest Cart)
+app.use('/api/guestcart', guestCartRoutes);
+
+// Route cho Giỏ hàng (Validate Cart)
+app.use('/api/cart', cartRoutes);
 
 // Khởi tạo RAM Cache cho AI Chatbot
 catalogCacheService.init().then(() => {

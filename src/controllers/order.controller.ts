@@ -62,64 +62,78 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
     const payosOrderCode = Number(String(Date.now()).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0'));
     
-    let calculatedTotal = 0;
-    const orderItemsToSave = [];
-    const payosItemsPayload = [];
+    // TẠO TRANSACTION CHẶN RACE CONDITION
+    const newOrder = await prisma.$transaction(async (tx) => {
+      let calculatedTotal = 0;
+      const orderItemsToSave = [];
+      const payosItemsPayload = [];
 
-    for (const item of items) {
-      const dbVariant = await prisma.productVariant.findUnique({
-        where: { id: Number(item.variantId || item.id) },
-        include: { product: true }
-      });
+      for (const item of items) {
+        // Query kiểm tra kho trực tiếp trong Transaction
+        const dbVariant = await tx.productVariant.findUnique({
+          where: { id: Number(item.variantId || item.id) },
+          include: { product: true }
+        });
 
-      if (!dbVariant) throw new Error(`Sản phẩm (ID: ${item.id}) không tồn tại trong hệ thống.`);
-      if (dbVariant.stock < Number(item.quantity)) {
-        throw new Error(`Sản phẩm "${dbVariant.product?.name}" chỉ còn ${dbVariant.stock} sản phẩm.`);
+        if (!dbVariant) throw new Error(`Sản phẩm (ID: ${item.id}) không tồn tại trong hệ thống.`);
+        
+        // Kiểm tra hụt kho
+        if (dbVariant.stock < Number(item.quantity)) {
+          throw new Error(`Sản phẩm "${dbVariant.product?.name}" chỉ còn ${dbVariant.stock} sản phẩm. Đơn hàng đã bị hủy bỏ để đảm bảo tồn kho.`);
+        }
+
+        const itemPrice = dbVariant.price;
+        const itemQuantity = Number(item.quantity);
+        calculatedTotal += itemPrice * itemQuantity;
+        
+        // Trừ kho trực tiếp
+        await tx.productVariant.update({
+          where: { id: dbVariant.id },
+          data: { stock: { decrement: itemQuantity } }
+        });
+
+        orderItemsToSave.push({
+          variantId: dbVariant.id,
+          productName: dbVariant.product?.name || "Sản phẩm không tên", 
+          quantity: itemQuantity,
+          price: itemPrice 
+        });
+
+        payosItemsPayload.push({
+          name: (dbVariant.product?.name || "SP").substring(0, 200),
+          quantity: itemQuantity,
+          price: itemPrice
+        });
       }
 
-      const itemPrice = dbVariant.price;
-      const itemQuantity = Number(item.quantity);
-      calculatedTotal += itemPrice * itemQuantity;
+      const createdOrder = await tx.order.create({
+        data: {
+          userId: userId ? Number(userId) : undefined,
+          orderCode: payosOrderCode,
+          customerName: fullName,
+          phone: phone,
+          address: address,
+          total: calculatedTotal,
+          paymentMethod: paymentMethod as any,
+          status: (paymentMethod === "COD" ? "PENDING_COD" : "PENDING_PAYOS") as any,
+          items: { create: orderItemsToSave }
+        },
+      });
       
-      orderItemsToSave.push({
-        variantId: dbVariant.id,
-        productName: dbVariant.product?.name || "Sản phẩm không tên", 
-        quantity: itemQuantity,
-        price: itemPrice 
-      });
-
-      payosItemsPayload.push({
-        name: (dbVariant.product?.name || "SP").substring(0, 200),
-        quantity: itemQuantity,
-        price: itemPrice
-      });
-    }
-
-    const newOrder = await prisma.order.create({
-      data: {
-        userId: userId ? Number(userId) : undefined,
-        orderCode: payosOrderCode,
-        customerName: fullName,
-        phone: phone,
-        address: address,
-        total: calculatedTotal,
-        paymentMethod: paymentMethod as any,
-        status: (paymentMethod === "COD" ? "PENDING_COD" : "PENDING_PAYOS") as any,
-        items: { create: orderItemsToSave }
-      },
+      return { createdOrder, payosItemsPayload, calculatedTotal };
     });
 
-    console.log(`[Order] Đã lưu đơn hàng #${newOrder.id} vào Database thành công.`);
+    console.log(`[Order] Đã lưu đơn hàng #${newOrder.createdOrder.id} vào Database thành công.`);
 
     // E. XỬ LÝ THANH TOÁN QR (TỰ ĐỘNG DÒ HÀM THEO PHIÊN BẢN)
     if (paymentMethod === "PAYOS") {
       const paymentData = {
         orderCode: payosOrderCode,
-        amount: calculatedTotal,
+        amount: newOrder.calculatedTotal,
         description: `TT Don Hang #${payosOrderCode}`,
         cancelUrl: `${FRONTEND_URL}/order/cancel`,
         returnUrl: `${FRONTEND_URL}/order/success`,
-        items: payosItemsPayload 
+        items: newOrder.payosItemsPayload 
       };
 
       let checkoutUrl = "";
@@ -143,7 +157,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     res.status(200).json({ 
       success: true, 
       message: "Đặt hàng thành công. Trường Tín sẽ gọi điện xác nhận sớm nhất.",    
-      orderCode: newOrder.orderCode.toString() 
+      orderCode: newOrder.createdOrder.orderCode.toString() 
     });
 
   } catch (error: any) {
@@ -159,40 +173,25 @@ export const adminApproveOrder = async (req: Request, res: Response): Promise<vo
   const { orderId } = req.params;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id: Number(orderId) },
-        include: { items: true }
-      });
-
-      if (!order) throw new Error("Không tìm thấy đơn hàng!");
-      if (order.status === "PAID_AND_CONFIRMED" || order.status === "CANCELLED") {
-        throw new Error("Đơn hàng này đã được xử lý xong hoặc đã bị hủy.");
-      }
-
-      for (const item of order.items) {
-        if (!item.variantId) continue;
-        const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
-        if (!variant || variant.stock < item.quantity) {
-          throw new Error(`Sản phẩm "${item.productName}" không đủ tồn kho để duyệt!`);
-        }
-      }
-
-      for (const item of order.items) {
-        if (!item.variantId) continue;
-        await tx.productVariant.update({
-          where: { id: item.variantId },
-          data: { stock: { decrement: item.quantity } }
-        });
-      }
-
-      await tx.order.update({
-        where: { id: order.id },
-        data: { status: "PAID_AND_CONFIRMED" as any }
-      });
+    const order = await prisma.order.findUnique({
+      where: { id: Number(orderId) },
     });
 
-    res.status(200).json({ success: true, message: "Duyệt đơn hàng và cập nhật kho thành công!" });
+    if (!order) {
+      res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng!" });
+      return;
+    }
+    if (order.status === "PAID_AND_CONFIRMED" || order.status === "CANCELLED") {
+      res.status(400).json({ success: false, message: "Đơn hàng này đã được xử lý xong hoặc đã bị hủy." });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "PAID_AND_CONFIRMED" as any }
+    });
+
+    res.status(200).json({ success: true, message: "Duyệt đơn hàng thành công!" });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -245,24 +244,39 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
 export const adminCancelOrder = async (req: Request, res: Response): Promise<void> => {
   const { orderId } = req.params;
   try {
-    const order = await prisma.order.findUnique({ where: { id: Number(orderId) } });
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ 
+        where: { id: Number(orderId) },
+        include: { items: true }
+      });
 
-    if (!order) {
-      res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng để hủy." });
-      return;
-    }
+      if (!order) {
+        throw new Error("Không tìm thấy đơn hàng để hủy.");
+      }
 
-    if (order.status === "PAID_AND_CONFIRMED") {
-      res.status(400).json({ success: false, message: "Đơn hàng đã hoàn tất giao nhận, không thể hủy tự động." });
-      return;
-    }
+      if (order.status === "PAID_AND_CONFIRMED") {
+        throw new Error("Đơn hàng đã hoàn tất giao nhận, không thể hủy tự động.");
+      }
+      if (order.status === "CANCELLED") {
+        throw new Error("Đơn hàng này đã bị hủy rồi.");
+      }
 
-    await prisma.order.update({
-      where: { id: Number(orderId) },
-      data: { status: "CANCELLED" as any }
+      // Hoàn lại kho
+      for (const item of order.items) {
+        if (!item.variantId) continue;
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stock: { increment: item.quantity } }
+        });
+      }
+
+      await tx.order.update({
+        where: { id: Number(orderId) },
+        data: { status: "CANCELLED" as any }
+      });
     });
 
-    res.status(200).json({ success: true, message: "Đơn hàng đã được chuyển sang trạng thái Hủy." });
+    res.status(200).json({ success: true, message: "Đơn hàng đã được chuyển sang trạng thái Hủy và Hoàn kho thành công." });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { upload } from '../lib/cloudinary';
+import cloudinary, { upload } from '../lib/cloudinary';
 import { verifyToken, isAdmin } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -19,6 +19,33 @@ router.post('/', verifyToken, isAdmin, upload.single('image'), (req: Request, re
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Lỗi upload ảnh." });
+  }
+});
+
+// Endpoint: GET /api/upload/signature
+// Dùng cho việc Client-side Upload hàng loạt
+router.get('/signature', verifyToken, isAdmin, (req: Request, res: Response): void => {
+  try {
+    const timestamp = Math.round((new Date()).getTime() / 1000);
+    const folder = 'truongtin_images';
+    
+    const signature = cloudinary.utils.api_sign_request({
+      timestamp,
+      folder
+    }, process.env.CLOUDINARY_API_SECRET!);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        timestamp,
+        signature,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+        apiKey: process.env.CLOUDINARY_API_KEY,
+        folder
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Lỗi tạo signature." });
   }
 });
 

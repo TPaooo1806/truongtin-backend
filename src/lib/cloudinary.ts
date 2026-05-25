@@ -23,3 +23,5 @@ const storage = new CloudinaryStorage({
 
 // 3. Khởi tạo Middleware Multer
 export const upload = multer({ storage: storage });
+
+export default cloudinary;

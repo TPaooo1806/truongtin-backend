@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer'; 
 import * as productController from '../controllers/product.controller';
-import * as categoryController from '../controllers/category.controller';
 import * as searchController from '../controllers/search.controller';
 import * as reviewController from '../controllers/review.controller';
 import * as reportController from '../controllers/report.controller';
@@ -12,10 +11,10 @@ const upload = multer({ storage: multer.memoryStorage() }); // <-- ĐÃ THÊM
 
 const router = Router();
 
-// --- NHÁNH DANH MỤC ---
-router.get('/categories', categoryController.getCategories);
-router.post('/categories', verifyToken, isAdmin, categoryController.createCategory);
-router.delete('/categories/:id', verifyToken, isAdmin, categoryController.deleteCategory);
+// --- NHÁNH DANH MỤC ĐÃ ĐƯỢC CHUYỂN SANG category.routes.ts ---
+
+// --- NHÁNH TRANG CHỦ ---
+router.get('/home-data', productController.getHomeData);
 
 // --- NHÁNH TÌM KIẾM ---
 router.get('/search/suggest', searchController.suggestProducts);
