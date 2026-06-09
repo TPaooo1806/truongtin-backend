@@ -1,4 +1,4 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import * as XLSX from 'xlsx'; 
 import ExcelJS from 'exceljs';
@@ -29,23 +29,23 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       whereCondition.category = { slug: category };
     }
     
-    // Há»— trá»£ láº¥y theo ID Danh má»¥c trá»±c tiáº¿p (DÃ nh cho chá»©c nÄƒng Sáº£n pháº©m liÃªn quan)
+    // Hỗ trợ lấy theo ID Danh mục trực tiếp (Dành cho chức năng Sản phẩm liên quan)
     const categoryId = req.query.categoryId as string | undefined;
     if (categoryId) {
       whereCondition.categoryId = Number(categoryId);
     }
 
-    // [AUDIT-FIX] Báº¯t buá»™c: Loáº¡i trá»« sáº£n pháº©m Ä‘ang xem ra khá»i danh sÃ¡ch
+    // [AUDIT-FIX] Bắt buộc: Loại trừ sản phẩm đang xem ra khỏi danh sách
     const excludeId = req.query.excludeId as string | undefined;
     if (excludeId) {
       whereCondition.id = { not: Number(excludeId) };
     }
 
    if (q) {
-  // BÄƒm tá»« khÃ³a thÃ nh máº£ng cÃ¡c tá»« (vd: "á»‘ng pvc" -> ["á»‘ng", "pvc"])
+  // Băm từ khóa thành mảng các từ (vd: "ống pvc" -> ["ống", "pvc"])
   const searchWords = q.trim().split(/\s+/);
   
-  // YÃªu cáº§u Prisma tÃ¬m sáº£n pháº©m cÃ³ chá»©a Táº¤T Cáº¢ cÃ¡c tá»« nÃ y
+  // Yêu cầu Prisma tìm sản phẩm có chứa TẤT CẢ các từ này
   whereCondition.AND = searchWords.map(word => ({
     name: { contains: word, mode: 'insensitive' }
   }));
@@ -76,8 +76,8 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       pagination: { currentPage: page, totalPages, totalItems, limit }
     });
   } catch (error) {
-    console.error("Lá»—i láº¥y danh sÃ¡ch sáº£n pháº©m:", error);
-    res.status(500).json({ success: false, message: "Lá»—i server" });
+    console.error("Lỗi lấy danh sách sản phẩm:", error);
+    res.status(500).json({ success: false, message: "Lỗi server" });
   }
 };
 
@@ -90,11 +90,11 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         name,
         slug,
         description,
-        unit: unit || "CÃ¡i",
+        unit: unit || "Cái",
         categoryId: parseInt(categoryId),
         variants: {
           create: variants.map((v: VariantInput, index: number) => {
-            const variantName = v.attributeValue || v.name || "Máº·c Ä‘á»‹nh"; 
+            const variantName = v.attributeValue || v.name || "Mặc định"; 
             return {
               name: variantName, 
               sku: v.sku && v.sku.trim() !== "" ? v.sku : `${slug}-${Date.now()}-${index}`,
@@ -111,8 +111,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {
-    console.error("ðŸš€ Lá»—i táº¡o sáº£n pháº©m:", error.message || error); 
-    res.status(500).json({ success: false, message: "Lá»—i táº¡o sáº£n pháº©m" });
+    console.error("🚀 Lỗi tạo sản phẩm:", error.message || error); 
+    res.status(500).json({ success: false, message: "Lỗi tạo sản phẩm" });
   }
 };
 
@@ -129,12 +129,12 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         name,
         slug,
         description,
-        unit: unit || "CÃ¡i",
+        unit: unit || "Cái",
         categoryId: parseInt(categoryId),
         variants: {
           deleteMany: {}, 
           create: variants.map((v: VariantInput, index: number) => {
-            const variantName = v.attributeValue || v.name || "Máº·c Ä‘á»‹nh";
+            const variantName = v.attributeValue || v.name || "Mặc định";
             return {
               name: variantName,
               sku: v.sku && v.sku.trim() !== "" ? v.sku : `${slug}-${Date.now()}-${index}`,
@@ -150,13 +150,13 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       }
     });
 
-    // Ã‰p Next.js xÃ³a cache trang chi tiáº¿t sáº£n pháº©m nÃ y
+    // Ép Next.js xóa cache trang chi tiết sản phẩm này
     await triggerRevalidate(`/product/${slug}`);
 
-    res.status(200).json({ success: true, message: "Cáº­p nháº­t thÃ nh cÃ´ng", data: updatedProduct });
+    res.status(200).json({ success: true, message: "Cập nhật thành công", data: updatedProduct });
   } catch (error: any) {
-    console.error("ðŸš€ Lá»—i cáº­p nháº­t sáº£n pháº©m:", error.message || error);
-    res.status(500).json({ success: false, message: "Lá»—i cáº­p nháº­t sáº£n pháº©m" });
+    console.error("🚀 Lỗi cập nhật sản phẩm:", error.message || error);
+    res.status(500).json({ success: false, message: "Lỗi cập nhật sản phẩm" });
   }
 };
 
@@ -171,10 +171,10 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
       await tx.product.delete({ where: { id: productId } });
     });
 
-    res.status(200).json({ success: true, message: "ÄÃ£ xÃ³a" });
+    res.status(200).json({ success: true, message: "Đã xóa" });
   } catch (error: any) {
-    console.error("ðŸš€ Lá»—i xÃ³a sáº£n pháº©m:", error.message || error);
-    res.status(500).json({ success: false, message: "Lá»—i khi xÃ³a" });
+    console.error("🚀 Lỗi xóa sản phẩm:", error.message || error);
+    res.status(500).json({ success: false, message: "Lỗi khi xóa" });
   }
 };
 
@@ -187,43 +187,43 @@ export const getProductBySlug = async (req: Request, res: Response): Promise<voi
     });
     
     if (!product) {
-      res.status(404).json({ success: false, message: "KhÃ´ng tÃ¬m tháº¥y" });
+      res.status(404).json({ success: false, message: "Không tìm thấy" });
       return;
     }
     
     res.status(200).json({ success: true, data: product });
   } catch (error) {
-    console.error("Lá»—i láº¥y chi tiáº¿t sáº£n pháº©m:", error);
-    res.status(500).json({ success: false, message: "Lá»—i server" });
+    console.error("Lỗi lấy chi tiết sản phẩm:", error);
+    res.status(500).json({ success: false, message: "Lỗi server" });
   }
 };
 
 // =======================================================
-// 1. API Táº¢I FORM MáºªU EXCEL (Báº¢N PRO CÃ“ Äá»ŠNH Dáº NG & DROPDOWN)
+// 1. API TẢI FORM MẪU EXCEL (BẢN PRO CÓ ĐỊNH DẠNG & DROPDOWN)
 // =======================================================
 export const getImportTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     const categories = await prisma.category.findMany({ select: { name: true } });
     const workbook = new ExcelJS.Workbook();
 
-    // Táº O SHEET áº¨N CHá»¨A DATA DROPDOWN (Chá»‘ng lá»—i 255 kÃ½ tá»± cá»§a Excel)
+    // TẠO SHEET ẨN CHỨA DATA DROPDOWN (Chống lỗi 255 ký tự của Excel)
     const dataSheet = workbook.addWorksheet("Data", { state: 'hidden' });
     categories.forEach((c, index) => {
       dataSheet.getCell(`A${index + 1}`).value = c.name;
     });
 
     const worksheet = workbook.addWorksheet('Products', {
-      views: [{ state: 'frozen', ySplit: 1 }] // ÄÃ³ng bÄƒng Header
+      views: [{ state: 'frozen', ySplit: 1 }] // Đóng băng Header
     });
 
     worksheet.columns = [
-      { header: 'TÃªn sáº£n pháº©m *', key: 'name', width: 35 },
-      { header: 'Danh má»¥c *', key: 'category', width: 25 },
-      { header: 'ÄÆ¡n vá»‹ tÃ­nh', key: 'unit', width: 15 },
-      { header: 'GiÃ¡ bÃ¡n *', key: 'price', width: 15 },
-      { header: 'Tá»“n kho *', key: 'stock', width: 15 },
-      { header: 'MÃ´ táº£', key: 'desc', width: 50 },
-      { header: 'Link áº£nh', key: 'images', width: 30 },
+      { header: 'Tên sản phẩm *', key: 'name', width: 35 },
+      { header: 'Danh mục *', key: 'category', width: 25 },
+      { header: 'Đơn vị tính', key: 'unit', width: 15 },
+      { header: 'Giá bán *', key: 'price', width: 15 },
+      { header: 'Tồn kho *', key: 'stock', width: 15 },
+      { header: 'Mô tả', key: 'desc', width: 50 },
+      { header: 'Link ảnh', key: 'images', width: 30 },
     ];
 
     // FORMAT HEADER
@@ -236,9 +236,9 @@ export const getImportTemplate = async (req: Request, res: Response): Promise<vo
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
 
-    const sampleCat = categories[0]?.name || 'BÃ³ng Ä‘Ã¨n';
+    const sampleCat = categories[0]?.name || 'Bóng đèn';
 
-    // DATA MáºªU - SP Ä‘Æ¡n giáº£n
+    // DATA MẪU - SP đơn giản
     const formatRow = (row: ExcelJS.Row) => {
       row.eachCell((cell) => {
         cell.font = { size: 12 };
@@ -247,27 +247,27 @@ export const getImportTemplate = async (req: Request, res: Response): Promise<vo
       });
     };
     formatRow(worksheet.addRow({
-      name: 'á»ng nhá»±a PVC BÃ¬nh Minh Phi 21',
+      name: 'Ống nhựa PVC Bình Minh Phi 21',
       category: sampleCat,
-      unit: 'CÃ¢y', price: 25000, stock: 100,
-      desc: 'Sáº£n pháº©m chÃ­nh hÃ£ng', images: ''
+      unit: 'Cây', price: 25000, stock: 100,
+      desc: 'Sản phẩm chính hãng', images: ''
     }));
 
     formatRow(worksheet.addRow({
-      name: 'BÃ³ng Ä‘Ã¨n LED MPE 3W', 
+      name: 'Bóng đèn LED MPE 3W', 
       category: sampleCat,
-      unit: 'CÃ¡i', price: 15000, stock: 50,
-      desc: 'BÃ³ng LED tiáº¿t kiá»‡m Ä‘iá»‡n', images: 'bongden-mpe.jpg'
+      unit: 'Cái', price: 15000, stock: 50,
+      desc: 'Bóng LED tiết kiệm điện', images: 'bongden-mpe.jpg'
     }));
 
-    // GÃN DROPDOWN (Trá» vá» Sheet áº©n) - Cá»™t B váº«n lÃ  Danh má»¥c
+    // GÁN DROPDOWN (Trỏ về Sheet ẩn) - Cột B vẫn là Danh mục
     for (let i = 2; i <= 2000; i++) {
       worksheet.getCell(`B${i}`).dataValidation = {
         type: 'list', allowBlank: false,
         formulae: [`Data!$A$1:$A$${categories.length || 1}`],
-        showErrorMessage: true, errorTitle: 'Sai danh má»¥c', error: 'Vui lÃ²ng chá»n danh má»¥c cÃ³ sáºµn!'
+        showErrorMessage: true, errorTitle: 'Sai danh mục', error: 'Vui lòng chọn danh mục có sẵn!'
       };
-      // Validate Sá»‘ - Cá»™t D (GiÃ¡ bÃ¡n) vÃ  E (Tá»“n kho)
+      // Validate Số - Cột D (Giá bán) và E (Tồn kho)
       worksheet.getCell(`D${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
       worksheet.getCell(`E${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
     }
@@ -278,32 +278,32 @@ export const getImportTemplate = async (req: Request, res: Response): Promise<vo
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error("Lá»—i táº¡o form máº«u:", error);
-    res.status(500).json({ success: false, message: "Lá»—i server" });
+    console.error("Lỗi tạo form mẫu:", error);
+    res.status(500).json({ success: false, message: "Lỗi server" });
   }
 };
 
 // =======================================================
-// 2. API Xá»¬ LÃ IMPORT (BATCHING CONCURRENT + NORMALIZE + LIMIT)
+// 2. API XỬ LÝ IMPORT (BATCHING CONCURRENT + NORMALIZE + LIMIT)
 // =======================================================
 export const importProductsFromExcel = async (req: Request | any, res: Response): Promise<void> => {
   try {
     if (!req.file) {
-      res.status(400).json({ success: false, message: "Vui lÃ²ng chá»n file Excel" });
+      res.status(400).json({ success: false, message: "Vui lòng chọn file Excel" });
       return;
     }
 
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheet = workbook.Sheets["Products"]; 
     
-    // Báº¯t lá»—i rá»§i ro náº¿u Admin tá»± Ã½ Ä‘á»•i tÃªn Sheet dÆ°á»›i Excel
+    // Bắt lỗi rủi ro nếu Admin tự ý đổi tên Sheet dưới Excel
     if (!sheet) {
-      res.status(400).json({ success: false, message: "File Excel khÃ´ng há»£p lá»‡. Vui lÃ²ng khÃ´ng Ä‘á»•i tÃªn Sheet 'Products'!" });
+      res.status(400).json({ success: false, message: "File Excel không hợp lệ. Vui lòng không đổi tên Sheet 'Products'!" });
       return;
     }
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
-    // Láº¥y imagesMap tá»« Frontend gá»­i lÃªn (náº¿u cÃ³)
+    // Lấy imagesMap từ Frontend gửi lên (nếu có)
     const imagesMapStr = req.body.imagesMap;
     let imagesMap: Record<string, string> = {};
     try {
@@ -314,30 +314,30 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
       console.error("Invalid imagesMap JSON");
     }
 
-    // HÃ m chuáº©n hÃ³a tÃªn file siÃªu cáº¥p (XÃ³a bá» má»i khoáº£ng tráº¯ng, dáº¥u gáº¡ch ngang, kÃ½ tá»± Ä‘áº·c biá»‡t)
+    // Hàm chuẩn hóa tên file siêu cấp (Xóa bỏ mọi khoảng trắng, dấu gạch ngang, ký tự đặc biệt)
     const normalizeFileName = (name: string) => {
       return name
         .toLowerCase()
-        .replace(/\.[a-z0-9]+$/, "") // XÃ³a bá» Ä‘uÃ´i file Ä‘á»ƒ so khá»›p Ä‘á»™c láº­p Ä‘á»‹nh dáº¡ng
+        .replace(/\.[a-z0-9]+$/, "") // Xóa bỏ đuôi file để so khớp độc lập định dạng
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Bá» dáº¥u tiáº¿ng Viá»‡t
-        .replace(/[^a-z0-9]/g, "") // XÃ³a má»i khoáº£ng tráº¯ng, dáº¥u gáº¡ch ngang, underscore...
+        .replace(/[\u0300-\u036f]/g, "") // Bỏ dấu tiếng Việt
+        .replace(/[^a-z0-9]/g, "") // Xóa mọi khoảng trắng, dấu gạch ngang, underscore...
         .trim();
     };
 
-    // Chuáº©n hÃ³a key cá»§a imagesMap
+    // Chuẩn hóa key của imagesMap
     const normalizedImagesMap: Record<string, string> = {};
     for (const [key, value] of Object.entries(imagesMap)) {
       normalizedImagesMap[normalizeFileName(key)] = value;
     }
 
-    // IMPROVEMENT 3: GIá»šI Háº N FILE SIZE & DÃ’NG
+    // IMPROVEMENT 3: GIỚI HẠN FILE SIZE & DÒNG
     if (rows.length === 0) {
-      res.status(400).json({ success: false, message: "File Excel trá»‘ng" });
+      res.status(400).json({ success: false, message: "File Excel trống" });
       return;
     }
     if (rows.length > 10000) {
-      res.status(400).json({ success: false, message: "File quÃ¡ lá»›n! Giá»›i háº¡n tá»‘i Ä‘a 10.000 dÃ²ng/láº§n." });
+      res.status(400).json({ success: false, message: "File quá lớn! Giới hạn tối đa 10.000 dòng/lần." });
       return;
     }
 
@@ -347,17 +347,17 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
     const existingProducts = await prisma.product.findMany({ select: { slug: true } });
     const existingSlugs = new Set(existingProducts.map(p => p.slug));
 
-    // IMPROVEMENT 2: LÃ€M Sáº CH VÃ€ CHUáº¨N HÃ“A INPUT
+    // IMPROVEMENT 2: LÀM SẠCH VÀ CHUẨN HÓA INPUT
     const cleanStr = (str: any) => str ? str.toString().replace(/[\u200B-\u200D\uFEFF]/g, '').trim() : '';
     const generateSlug = (str: string) => cleanStr(str).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
-    // HÃ m tá»± Ä‘á»™ng viáº¿t hoa chá»¯ cÃ¡i Ä‘áº§u má»—i tá»« (Title Case)
+    // Hàm tự động viết hoa chữ cái đầu mỗi từ (Title Case)
     const capitalizeFirst = (str: string) => {
       if (!str) return str;
       return str.charAt(0).toUpperCase() + str.slice(1);
     };
 
-    // HÃ m parse giÃ¡ tiá»n thÃ´ng minh (cháº¥p nháº­n dáº¥u pháº©y, dáº¥u cháº¥m, hoáº·c Ä‘á»ƒ trá»‘ng = 0)
+    // Hàm parse giá tiền thông minh (chấp nhận dấu phẩy, dấu chấm, hoặc để trống = 0)
     const parsePrice = (raw: any): number => {
       if (raw === undefined || raw === null || raw === '') return 0;
       if (typeof raw === 'number') return raw;
@@ -369,42 +369,42 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
     let warnings: any[] = [];
 
     // ===================================================================
-    // BÆ¯á»šC 1: XÃ‚Y Dá»°NG PAYLOAD Tá»ª Tá»ªNG DÃ’NG EXCEL
+    // BƯỚC 1: XÂY DỰNG PAYLOAD TỪ TỪNG DÒNG EXCEL
     // ===================================================================
     const validPayloads: { rowNumber: number; data: any }[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowNumber = i + 2; // DÃ²ng 1 lÃ  header, dá»¯ liá»‡u báº¯t Ä‘áº§u tá»« dÃ²ng 2
+      const rowNumber = i + 2; // Dòng 1 là header, dữ liệu bắt đầu từ dòng 2
 
-      const rawName = cleanStr(row["TÃªn sáº£n pháº©m *"]);
-      if (!rawName) { errors.push({ row: rowNumber, reason: "Thiáº¿u tÃªn sáº£n pháº©m" }); continue; }
+      const rawName = cleanStr(row["Tên sản phẩm *"]);
+      if (!rawName) { errors.push({ row: rowNumber, reason: "Thiếu tên sản phẩm" }); continue; }
 
-      // Tá»± Ä‘á»™ng viáº¿t hoa chá»¯ cÃ¡i Ä‘áº§u
+      // Tự động viết hoa chữ cái đầu
       const name = capitalizeFirst(rawName);
 
-      const catName = cleanStr(row["Danh má»¥c *"]).toLowerCase();
-      const unit = cleanStr(row["ÄÆ¡n vá»‹ tÃ­nh"]) || "CÃ¡i";
-      const price = parsePrice(row["GiÃ¡ bÃ¡n *"]);
-      const stock = Number(row["Tá»“n kho *"]) || 0;
-      const description = cleanStr(row["MÃ´ táº£"]);
-      const imagesStr = cleanStr(row["Link áº£nh"]);
+      const catName = cleanStr(row["Danh mục *"]).toLowerCase();
+      const unit = cleanStr(row["Đơn vị tính"]) || "Cái";
+      const price = parsePrice(row["Giá bán *"]);
+      const stock = Number(row["Tồn kho *"]) || 0;
+      const description = cleanStr(row["Mô tả"]);
+      const imagesStr = cleanStr(row["Link ảnh"]);
 
-      if (price < 0) { errors.push({ row: rowNumber, reason: "GiÃ¡ bÃ¡n khÃ´ng Ä‘Æ°á»£c Ã¢m" }); continue; }
+      if (price < 0) { errors.push({ row: rowNumber, reason: "Giá bán không được âm" }); continue; }
 
       const categoryId = categoryMap.get(catName);
-      if (!categoryId) { errors.push({ row: rowNumber, reason: `Danh má»¥c '${row["Danh má»¥c *"]}' khÃ´ng tá»“n táº¡i` }); continue; }
+      if (!categoryId) { errors.push({ row: rowNumber, reason: `Danh mục '${row["Danh mục *"]}' không tồn tại` }); continue; }
 
       const slug = generateSlug(name);
 
-      // Kiá»ƒm tra trÃ¹ng tÃªn vá»›i Database (ká»ƒ cáº£ nhá»¯ng slug Ä‘Ã£ thÃªm trong Ä‘á»£t nÃ y)
+      // Kiểm tra trùng tên với Database (kể cả những slug đã thêm trong đợt này)
       if (existingSlugs.has(slug)) {
-        errors.push({ row: rowNumber, reason: `Sáº£n pháº©m '${name}' Ä‘Ã£ tá»“n táº¡i (TrÃ¹ng tÃªn)` });
+        errors.push({ row: rowNumber, reason: `Sản phẩm '${name}' đã tồn tại (Trùng tên)` });
         continue;
       }
       existingSlugs.add(slug);
 
-      // Xá»­ lÃ½ chuá»—i Link áº£nh
+      // Xử lý chuỗi Link ảnh
       const imagesArray: { url: string }[] = [];
       if (imagesStr) {
         const parts = imagesStr.split(';');
@@ -420,16 +420,16 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
             if (cloudUrl) {
               imagesArray.push({ url: cloudUrl });
             } else {
-              warnings.push({ row: rowNumber, name, reason: `KhÃ´ng tÃ¬m tháº¥y file áº£nh tÆ°Æ¡ng á»©ng: ${urlOrName}` });
+              warnings.push({ row: rowNumber, name, reason: `Không tìm thấy file ảnh tương ứng: ${urlOrName}` });
             }
           }
         }
       }
 
-      // Táº¡o máº£ng Variants (Má»—i sáº£n pháº©m cÃ³ 1 biáº¿n thá»ƒ máº·c Ä‘á»‹nh)
+      // Tạo mảng Variants (Mỗi sản phẩm có 1 biến thể mặc định)
       const sku = `SP-${Date.now().toString().slice(-6)}-${rowNumber}-${Math.floor(Math.random() * 1000)}`;
       const variantsCreate = [
-        { name: "Máº·c Ä‘á»‹nh", sku, price, stock }
+        { name: "Mặc định", sku, price, stock }
       ];
 
       validPayloads.push({
@@ -447,7 +447,7 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
     }
 
     // ===================================================================
-    // BÆ¯á»šC 3: BATCH INSERT CONCURRENT (Cháº¡y song song 50 lá»‡nh)
+    // BƯỚC 3: BATCH INSERT CONCURRENT (Chạy song song 50 lệnh)
     // ===================================================================
     const CHUNK_SIZE = 50;
     for (let i = 0; i < validPayloads.length; i += CHUNK_SIZE) {
@@ -465,16 +465,16 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
         if (result.status === 'fulfilled') {
           successCount++;
         } else if (result.status === 'rejected' && 'error' in result) {
-          console.error(`Lá»—i DB dÃ²ng ${result.rowNumber}:`, result.error);
+          console.error(`Lỗi DB dòng ${result.rowNumber}:`, result.error);
           
-          let errDetail = "Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh";
+          let errDetail = "Lỗi không xác định";
           if (result.error instanceof Error) {
             errDetail = result.error.message.split('\n').pop() || result.error.message;
           } else if (typeof result.error === 'string') {
             errDetail = result.error;
           }
           
-          errors.push({ row: result.rowNumber, reason: `Lá»—i lÆ°u DB: ${errDetail}` });
+          errors.push({ row: result.rowNumber, reason: `Lỗi lưu DB: ${errDetail}` });
         }
       });
     }
@@ -485,8 +485,8 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
     });
 
   } catch (error) {
-    console.error("Lá»—i Import Excel:", error);
-    res.status(500).json({ success: false, message: "Lá»—i há»‡ thá»‘ng khi xá»­ lÃ½ file" });
+    console.error("Lỗi Import Excel:", error);
+    res.status(500).json({ success: false, message: "Lỗi hệ thống khi xử lý file" });
   }
 };
 
@@ -525,10 +525,7 @@ export const getHomeData = async (req: Request, res: Response): Promise<void> =>
       }
     });
   } catch (error) {
-    console.error('L×i l¥y dï liÇu trang chç:', error);
-    res.status(500).json({ success: false, message: 'L×i server' });
+    console.error('Lỗi lấy dữ liệu trang chủ:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 };
-
-
-
