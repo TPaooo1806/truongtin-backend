@@ -42,7 +42,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 // 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (FULL LOGIC)
 // ==========================================
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
-  const { fullName, phone, address, paymentMethod, items } = req.body;
+  const { fullName, phone, address, paymentMethod, items, shippingFee: rawShippingFee } = req.body;
+  const shippingFee = Number(rawShippingFee) || 0;
   const userId = (req as any).user?.id;
 
   console.log(`[Order] Bắt đầu tạo đơn hàng cho khách: ${fullName} (${phone})`);
@@ -104,6 +105,17 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
           name: (dbVariant.product?.name || "SP").substring(0, 200),
           quantity: itemQuantity,
           price: itemPrice
+        });
+      }
+
+      // Cộng phí ship vào tổng tiền
+      calculatedTotal += shippingFee;
+
+      if (shippingFee > 0) {
+        payosItemsPayload.push({
+          name: "Phí vận chuyển",
+          quantity: 1,
+          price: shippingFee
         });
       }
 
