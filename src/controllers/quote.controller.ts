@@ -55,6 +55,7 @@ export const getQuoteByCode = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ success: true, data: quote });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi hệ thống khi tra cứu báo giá." });
   }
 };

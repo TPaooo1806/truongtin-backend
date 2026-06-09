@@ -142,6 +142,8 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
     // C. Sắp xếp thông báo: Cái nào mới xảy ra thì đưa lên đầu
     notifications.sort((a, b) => b.time.getTime() - a.time.getTime());
 
+    const totalProductsCount = await prisma.product.count();
+
     // 6. TRẢ KẾT QUẢ VỀ CLIENT
     res.status(200).json({
       success: true,
@@ -153,6 +155,7 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
           totalOrdersCount,
           approvedOrdersCount,
           pendingOrdersCount,
+          totalProductsCount, // Added
         },
         revenueChart: { labels: chartLabels.reverse(), data: chartData.reverse() }, 
         topProducts: {

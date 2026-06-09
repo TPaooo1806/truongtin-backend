@@ -65,8 +65,8 @@ app.set('trust proxy', 1);
 // Kẻ tấn công hoặc bot spam sẽ nhận 429 Too Many Requests
 // ==========================================
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,   // Cửa sổ 1 phút
-  max: 150,                    // Tối đa 150 request/IP/phút
+  windowMs: 15 * 60 * 1000,   // Cửa sổ 15 phút
+  max: 100,                    // Tối đa 100 request/IP/15 phút
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -85,9 +85,19 @@ const authLimiter = rateLimit({
   }
 });
 
-// Bỏ comment tạm thời để test xem có phải Rate Limiting làm treo API không
-// app.use('/api', apiLimiter);
-// app.use('/api/auth', authLimiter);
+// Rate limit cực nghiêm cho tạo đơn hàng (Chống spam API orders)
+const orderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,   // 15 phút
+  max: 10,                    // Tối đa 10 đơn hàng / IP / 15 phút
+  message: {
+    success: false,
+    message: 'Bạn đang tạo quá nhiều đơn hàng. Vui lòng thử lại sau 15 phút!'
+  }
+});
+
+app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter);
+app.use('/api/orders', orderLimiter);
 
 // ==========================================
 // Route kiểm tra server

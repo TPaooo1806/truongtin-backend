@@ -32,6 +32,7 @@ try {
     payos = new PayOSClass({ clientId, apiKey, checksumKey });
   }
 } catch (error) {
+    console.error("Lỗi:", error);
   payos = new PayOSClass({ clientId, apiKey, checksumKey });
 }
 
@@ -200,6 +201,7 @@ export const adminApproveOrder = async (req: Request, res: Response): Promise<vo
 
     res.status(200).json({ success: true, message: "Duyệt đơn hàng thành công!" });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -309,6 +311,7 @@ export const adminCancelOrder = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json({ success: true, message: "Đơn hàng đã được chuyển sang trạng thái Hủy và Hoàn kho thành công." });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -345,6 +348,7 @@ export const trackOrder = async (req: Request, res: Response): Promise<void> => 
 
     res.status(200).json({ success: true, data: orderData });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi hệ thống tra cứu." });
   }
 };
@@ -388,6 +392,7 @@ export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response
       currentPage: page
     });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Không thể tải danh sách đơn hàng." });
   }
 };
@@ -430,6 +435,7 @@ export const lookupOrders = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ success: true, data: safeOrders });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi hệ thống tra cứu." });
   }
 };
@@ -475,6 +481,7 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
 
     res.status(200).json({ success: true, message: "Cập nhật trạng thái thành công" });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -505,6 +512,7 @@ export const updatePaymentStatus = async (req: AuthenticatedRequest, res: Respon
 
     res.status(200).json({ success: true, message: "Xác nhận đã thu tiền thành công" });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi hệ thống." });
   }
 };

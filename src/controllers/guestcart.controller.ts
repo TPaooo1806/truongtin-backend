@@ -48,6 +48,7 @@ export const getGuestCart = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ success: true, data: cart });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi hệ thống khi tải giỏ hàng." });
   }
 };

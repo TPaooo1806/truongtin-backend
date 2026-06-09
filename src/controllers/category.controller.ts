@@ -92,6 +92,7 @@ export const deleteCategory = async (req: Request, res: Response): Promise<void 
     triggerRevalidate('/'); // Cập nhật lại trang chủ nếu danh mục bị xóa
     return res.status(200).json({ success: true, message: "Xóa thành công" });
   } catch (error) {
+    console.error("Lỗi:", error);
     return res.status(500).json({ success: false, message: "Lỗi server" });
   }
 };

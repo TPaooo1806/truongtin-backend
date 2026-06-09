@@ -7,6 +7,7 @@ export const getBanners = async (req: Request, res: Response) => {
     const banners = await prisma.banner.findMany({ orderBy: { createdAt: 'desc' } });
     res.json({ success: true, data: banners });
   } catch (error) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi lấy banner" });
   }
 };
@@ -28,6 +29,7 @@ export const getActiveBanners = async (req: Request, res: Response) => {
     });
     res.json({ success: true, data: banners });
   } catch (error) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi lấy banner hoạt động" });
   }
 };
@@ -46,6 +48,7 @@ export const createBanner = async (req: Request, res: Response) => {
     });
     res.json({ success: true, data: newBanner });
   } catch (error) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi tạo banner" });
   }
 };
@@ -61,6 +64,7 @@ export const toggleBanner = async (req: Request, res: Response) => {
     });
     res.json({ success: true, message: "Cập nhật thành công" });
   } catch (error) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi cập nhật banner" });
   }
 };
@@ -71,6 +75,7 @@ export const deleteBanner = async (req: Request, res: Response) => {
     await prisma.banner.delete({ where: { id: Number(req.params.id) } });
     res.json({ success: true, message: "Đã xóa banner" });
   } catch (error) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi xóa banner" });
   }
 };

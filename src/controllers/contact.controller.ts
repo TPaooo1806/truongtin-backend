@@ -42,6 +42,7 @@ export const getAllContacts = async (req: Request, res: Response): Promise<void>
     });
     res.status(200).json({ success: true, data: contacts });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Không tải được danh sách liên hệ." });
   }
 };
@@ -57,6 +58,7 @@ export const resolveContact = async (req: Request, res: Response): Promise<void>
     });
     res.status(200).json({ success: true, message: "Đã đánh dấu xử lý!" });
   } catch (error: any) {
+    console.error("Lỗi:", error);
     res.status(500).json({ success: false, message: "Lỗi khi cập nhật trạng thái." });
   }
 };
