@@ -6,7 +6,9 @@ import {
   adminApproveOrder,
   adminCancelOrder,
   getAllOrdersAdmin,
-  lookupOrders
+  lookupOrders,
+  updateOrderStatus,
+  updatePaymentStatus
 } from "../controllers/order.controller";
 import { verifyToken, isAdmin } from "../middlewares/auth.middleware"; 
 
@@ -46,9 +48,19 @@ router.get("/admin/all", verifyToken, isAdmin, getAllOrdersAdmin);
 router.patch("/approve/:orderId", verifyToken, isAdmin, adminApproveOrder);
 
 /**
- * Hủy đơn hàng
+ * Hủy đơn hàng (cũ)
  * URL: PATCH http://localhost:5000/api/orders/cancel/:orderId
  */
 router.patch("/cancel/:orderId", verifyToken, isAdmin, adminCancelOrder);
+
+/**
+ * Cập nhật trạng thái giao hàng
+ */
+router.patch("/admin/status/:id", verifyToken, isAdmin, updateOrderStatus);
+
+/**
+ * Cập nhật trạng thái thanh toán (Thủ công cho COD)
+ */
+router.patch("/admin/payment-status/:id", verifyToken, isAdmin, updatePaymentStatus);
 
 export default router;

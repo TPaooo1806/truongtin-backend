@@ -433,3 +433,78 @@ export const lookupOrders = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ success: false, message: "Lỗi hệ thống tra cứu." });
   }
 };
+
+// ==========================================
+// 8. ADMIN: CẬP NHẬT TRẠNG THÁI GIAO HÀNG
+// ==========================================
+export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: Number(id) },
+        include: { items: true }
+      });
+
+      if (!order) {
+        throw new Error("Không tìm thấy đơn hàng.");
+      }
+
+      // Logic Hoàn kho nếu trạng thái là RETURNED hoặc CANCELLED
+      // và trạng thái cũ CHƯA PHẢI là RETURNED hoặc CANCELLED
+      if (
+        (status === "RETURNED" || status === "CANCELLED") &&
+        !(order.status === "RETURNED" || order.status === "CANCELLED")
+      ) {
+        for (const item of order.items) {
+          if (!item.variantId) continue;
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stock: { increment: item.quantity } }
+          });
+        }
+      }
+
+      await tx.order.update({
+        where: { id: Number(id) },
+        data: { status }
+      });
+    });
+
+    res.status(200).json({ success: true, message: "Cập nhật trạng thái thành công" });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// 9. ADMIN: XÁC NHẬN ĐÃ THU TIỀN (CHỈ DÀNH CHO COD)
+// ==========================================
+export const updatePaymentStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: Number(id) } });
+
+    if (!order) {
+      res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
+      return;
+    }
+
+    if (order.paymentMethod !== "COD") {
+      res.status(400).json({ success: false, message: "Chỉ có thể xác nhận thu tiền thủ công cho đơn COD." });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id: Number(id) },
+      data: { paymentStatus: "PAID" }
+    });
+
+    res.status(200).json({ success: true, message: "Xác nhận đã thu tiền thành công" });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Lỗi hệ thống." });
+  }
+};
