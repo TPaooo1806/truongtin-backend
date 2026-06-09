@@ -410,10 +410,22 @@ export const lookupOrders = async (req: Request, res: Response): Promise<void> =
       include: { items: { include: { variant: { include: { product: true } } } } }
     });
 
-    const safeOrders = orders.map(order => ({
-      ...order,
-      orderCode: order.orderCode.toString(),
-    }));
+    const safeOrders = orders.map(order => {
+      const originalCode = order.orderCode.toString();
+      // Mask the order code (e.g., 994129180789 -> ***80789)
+      const maskedCode = '***' + originalCode.slice(-5);
+      return {
+        id: order.id,
+        orderCode: maskedCode,
+        total: order.total,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
+        paymentUrl: order.paymentUrl,
+        createdAt: order.createdAt,
+        items: order.items,
+      };
+    });
 
     res.status(200).json({ success: true, data: safeOrders });
   } catch (error: any) {
