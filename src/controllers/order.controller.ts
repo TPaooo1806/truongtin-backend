@@ -131,7 +131,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         orderCode: payosOrderCode,
         amount: newOrder.calculatedTotal,
         description: `TT Don Hang #${payosOrderCode}`,
-        cancelUrl: `${FRONTEND_URL}/order/cancel`,
+        cancelUrl: `${FRONTEND_URL}/checkout?status=cancelled`,
         returnUrl: `${FRONTEND_URL}/order/success`,
         items: newOrder.payosItemsPayload 
       };
@@ -214,21 +214,38 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
       throw new Error("Lỗi PayOS: Không tìm thấy hàm verify.");
     }
 
-    const isSuccess = verifiedData.code === '00' || verifiedData.success || verifiedData.status === 'PAID';
+    const isSuccess = verifiedData.code === '00' || verifiedData.success === true || verifiedData.status === 'PAID';
+    const isCancelled = verifiedData.desc === 'cancel' || verifiedData.status === 'CANCELLED' || verifiedData.code === '01';
 
-    if (isSuccess) {
-      const payosOrderCode = verifiedData.orderCode;
+    const payosOrderCode = verifiedData.orderCode;
+    const order = await prisma.order.findUnique({
+      where: { orderCode: BigInt(payosOrderCode) },
+      include: { items: true }
+    });
 
-      const order = await prisma.order.findUnique({
-        where: { orderCode: BigInt(payosOrderCode) }
-      });
-
-      if (order && (order.status as string) === "PENDING_PAYOS") {
+    if (order && (order.status as string) === "PENDING_PAYOS") {
+      if (isSuccess) {
         await prisma.order.update({
           where: { orderCode: BigInt(payosOrderCode) },
           data: { status: "PAID_PENDING_CONFIRM" as any } 
         });
         console.log(`[Webhook] Đơn hàng #${payosOrderCode} đã thanh toán thành công.`);
+      } else if (isCancelled) {
+        // Hoàn lại kho
+        await prisma.$transaction(async (tx) => {
+          for (const item of order.items) {
+            if (!item.variantId) continue;
+            await tx.productVariant.update({
+              where: { id: item.variantId },
+              data: { stock: { increment: item.quantity } }
+            });
+          }
+          await tx.order.update({
+            where: { orderCode: BigInt(payosOrderCode) },
+            data: { status: "CANCELLED" as any }
+          });
+        });
+        console.log(`[Webhook] Đơn hàng #${payosOrderCode} đã bị hủy thanh toán.`);
       }
     }
     res.status(200).json({ success: true });

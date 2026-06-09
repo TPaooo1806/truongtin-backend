@@ -70,6 +70,7 @@ model Product {
   description String?
   unit        String    @default("Cái")
   isVisible   Boolean   @default(true)
+  attributes  Json?     // Lưu thông số kỹ thuật động (Key-Value)
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
