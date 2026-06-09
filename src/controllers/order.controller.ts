@@ -422,6 +422,7 @@ export const lookupOrders = async (req: Request, res: Response): Promise<void> =
         paymentStatus: order.paymentStatus,
         paymentMethod: order.paymentMethod,
         paymentUrl: order.paymentUrl,
+        trackingCode: order.trackingCode,
         createdAt: order.createdAt,
         items: order.items,
       };
