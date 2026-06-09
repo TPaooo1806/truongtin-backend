@@ -14,6 +14,7 @@ import chatRoutes from './routes/chat.route';
 import quoteRoutes from './routes/quote.route';
 import guestCartRoutes from './routes/guestcart.route';
 import cartRoutes from './routes/cart.route';
+import shippingRoutes from './routes/shipping.routes';
 import { verifyToken, isAdmin } from './middlewares/auth.middleware';
 import { getAdminNotifications } from "./controllers/notification.controller";
 import catalogCacheService from './services/catalogCache.service';
@@ -122,6 +123,9 @@ app.use('/api/guestcart', guestCartRoutes);
 
 // Route cho Giỏ hàng (Validate Cart)
 app.use('/api/cart', cartRoutes);
+
+// Route cho Tính phí vận chuyển
+app.use('/api/shipping', shippingRoutes);
 
 // Khởi tạo RAM Cache cho AI Chatbot
 catalogCacheService.init().then(() => {

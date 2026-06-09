@@ -83,7 +83,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, slug, description, unit, categoryId, variants, images, attributes } = req.body;
+    const { name, slug, description, unit, categoryId, variants, images, attributes, isBulky } = req.body;
 
     const result = await prisma.product.create({
       data: {
@@ -92,6 +92,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         description,
         unit: unit || "Cái",
         categoryId: parseInt(categoryId),
+        isBulky: isBulky === true || isBulky === 'true',
         attributes: attributes ? JSON.parse(JSON.stringify(attributes)) : null,
         variants: {
           create: variants.map((v: VariantInput, index: number) => {
@@ -122,7 +123,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const productId = parseInt(idStr as string);
     
-    const { name, slug, description, unit, categoryId, variants, images, attributes } = req.body;
+    const { name, slug, description, unit, categoryId, variants, images, attributes, isBulky } = req.body;
 
     const updatedProduct = await prisma.product.update({
       where: { id: productId },
@@ -132,6 +133,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         description,
         unit: unit || "Cái",
         categoryId: parseInt(categoryId),
+        isBulky: isBulky === true || isBulky === 'true',
         attributes: attributes ? JSON.parse(JSON.stringify(attributes)) : null,
         variants: {
           deleteMany: {}, 

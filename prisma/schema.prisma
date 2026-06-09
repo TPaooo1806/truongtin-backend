@@ -70,6 +70,7 @@ model Product {
   description String?
   unit        String    @default("Cái")
   isVisible   Boolean   @default(true)
+  isBulky     Boolean   @default(false) // Hàng cồng kềnh (ống dài, nặng...)
   attributes  Json?     // Lưu thông số kỹ thuật động (Key-Value)
 
   createdAt   DateTime  @default(now())
