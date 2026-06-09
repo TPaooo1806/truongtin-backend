@@ -146,6 +146,7 @@ model Order {
   total        Int
   status       OrderStatus @default(PENDING)
   paymentMethod String     @default("COD") // Để biết khách chọn COD hay PAYOS
+  paymentStatus String     @default("UNPAID") // UNPAID, PAID, CANCELLED, EXPIRED
 
   customerName String
   phone        String

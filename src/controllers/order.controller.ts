@@ -115,6 +115,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
           address: address,
           total: calculatedTotal,
           paymentMethod: paymentMethod as any,
+          paymentStatus: "UNPAID",
           status: (paymentMethod === "COD" ? "PENDING_COD" : "PENDING_PAYOS") as any,
           items: { create: orderItemsToSave }
         },
@@ -216,6 +217,7 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
 
     const isSuccess = verifiedData.code === '00' || verifiedData.success === true || verifiedData.status === 'PAID';
     const isCancelled = verifiedData.desc === 'cancel' || verifiedData.status === 'CANCELLED' || verifiedData.code === '01';
+    const isExpired = verifiedData.status === 'EXPIRED';
 
     const payosOrderCode = verifiedData.orderCode;
     const order = await prisma.order.findUnique({
@@ -227,10 +229,13 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
       if (isSuccess) {
         await prisma.order.update({
           where: { orderCode: BigInt(payosOrderCode) },
-          data: { status: "PAID_PENDING_CONFIRM" as any } 
+          data: { 
+            status: "PAID_PENDING_CONFIRM" as any,
+            paymentStatus: "PAID"
+          } 
         });
         console.log(`[Webhook] Đơn hàng #${payosOrderCode} đã thanh toán thành công.`);
-      } else if (isCancelled) {
+      } else if (isCancelled || isExpired) {
         // Hoàn lại kho
         await prisma.$transaction(async (tx) => {
           for (const item of order.items) {
@@ -242,7 +247,10 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
           }
           await tx.order.update({
             where: { orderCode: BigInt(payosOrderCode) },
-            data: { status: "CANCELLED" as any }
+            data: { 
+              status: "CANCELLED" as any,
+              paymentStatus: isExpired ? "EXPIRED" : "CANCELLED"
+            }
           });
         });
         console.log(`[Webhook] Đơn hàng #${payosOrderCode} đã bị hủy thanh toán.`);
