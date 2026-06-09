@@ -5,7 +5,8 @@ import {
   trackOrder, 
   adminApproveOrder,
   adminCancelOrder,
-  getAllOrdersAdmin
+  getAllOrdersAdmin,
+  lookupOrders
 } from "../controllers/order.controller";
 import { verifyToken, isAdmin } from "../middlewares/auth.middleware"; 
 
@@ -18,8 +19,11 @@ const router = express.Router();
 // 1. Tạo đơn hàng
 router.post("/", createOrder);
 
-// 2. Tra cứu đơn hàng
+// 2. Tra cứu đơn hàng (cũ)
 router.post("/track", trackOrder);
+
+// 2.1 Tra cứu đơn hàng mới bằng SĐT
+router.get("/lookup", lookupOrders);
 
 // 3. Webhook PayOS
 router.post("/webhook", verifyPayOSWebhook);

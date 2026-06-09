@@ -149,8 +149,14 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       } else {
         throw new Error("Lỗi PayOS: Không tìm thấy hàm tạo link ở cả 2 phiên bản!");
       }
+
+      // Lưu URL thanh toán vào DB
+      await prisma.order.update({
+        where: { id: newOrder.createdOrder.id },
+        data: { paymentUrl: checkoutUrl }
+      });
       
-      console.log(`[PayOS] Đã tạo link thanh toán QR: ${checkoutUrl}`);
+      console.log(`[PayOS] Đã tạo link thanh toán QR và lưu vào DB: ${checkoutUrl}`);
       res.status(200).json({ success: true, checkoutUrl });
       return;
     }
@@ -348,18 +354,69 @@ export const trackOrder = async (req: Request, res: Response): Promise<void> => 
 // ==========================================
 export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const orders = await prisma.order.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { items: true }
-    });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const whereClause = {
+      paymentStatus: {
+        in: ["UNPAID", "PAID"]
+      }
+    };
+
+    const [orders, totalOrders] = await Promise.all([
+      prisma.order.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+        include: { items: true },
+        skip,
+        take: limit
+      }),
+      prisma.order.count({ where: whereClause })
+    ]);
 
     const safeOrders = orders.map(order => ({
       ...order,
       orderCode: order.orderCode.toString()
     }));
 
-    res.status(200).json({ success: true, data: safeOrders });
+    res.status(200).json({ 
+      success: true, 
+      data: safeOrders,
+      totalOrders,
+      totalPages: Math.ceil(totalOrders / limit),
+      currentPage: page
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: "Không thể tải danh sách đơn hàng." });
+  }
+};
+
+// ==========================================
+// 7. TRA CỨU DANH SÁCH ĐƠN HÀNG (DÀNH CHO KHÁCH BẰNG SĐT)
+// ==========================================
+export const lookupOrders = async (req: Request, res: Response): Promise<void> => {
+  const { phone } = req.query;
+
+  if (!phone || typeof phone !== 'string') {
+    res.status(400).json({ success: false, message: "Vui lòng cung cấp số điện thoại hợp lệ." });
+    return;
+  }
+
+  try {
+    const orders = await prisma.order.findMany({
+      where: { phone: phone.trim() },
+      orderBy: { createdAt: 'desc' },
+      include: { items: { include: { variant: { include: { product: true } } } } }
+    });
+
+    const safeOrders = orders.map(order => ({
+      ...order,
+      orderCode: order.orderCode.toString(),
+    }));
+
+    res.status(200).json({ success: true, data: safeOrders });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Lỗi hệ thống tra cứu." });
   }
 };
