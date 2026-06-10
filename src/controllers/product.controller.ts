@@ -496,15 +496,51 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
 
 export const getHomeData = async (req: Request, res: Response): Promise<void> => {
   try {
-    const topSelling = await prisma.product.findMany({
-      take: 12,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        category: { select: { id: true, name: true, slug: true } }, 
-        images: true,
-        variants: true
-      }
-    });
+    // 1. Lấy danh sách ID sản phẩm bán chạy nhất từ OrderItem
+    const topSoldResult = await prisma.$queryRaw<{id: number, total_sold: number}[]>`
+      SELECT p.id, CAST(SUM(oi.quantity) AS INTEGER) as total_sold
+      FROM "Product" p
+      JOIN "ProductVariant" pv ON p.id = pv."productId"
+      JOIN "OrderItem" oi ON pv.id = oi."variantId"
+      JOIN "Order" o ON oi."orderId" = o.id
+      WHERE o.status != 'CANCELLED'
+      GROUP BY p.id
+      ORDER BY total_sold DESC
+      LIMIT 12;
+    `;
+    
+    const topSoldIds = topSoldResult.map(r => r.id);
+    let topSelling: any[] = [];
+
+    // 2. Lấy thông tin chi tiết các sản phẩm bán chạy
+    if (topSoldIds.length > 0) {
+      topSelling = await prisma.product.findMany({
+        where: { id: { in: topSoldIds } },
+        include: {
+          category: { select: { id: true, name: true, slug: true } }, 
+          images: true,
+          variants: true
+        }
+      });
+      // Sắp xếp lại topSelling theo đúng thứ tự bán chạy nhất (desc)
+      topSelling.sort((a, b) => topSoldIds.indexOf(a.id) - topSoldIds.indexOf(b.id));
+    }
+
+    // 3. Nếu chưa đủ 12 sản phẩm, lấy thêm các sản phẩm mới nhất để bù vào
+    if (topSelling.length < 12) {
+      const remainingCount = 12 - topSelling.length;
+      const additionalProducts = await prisma.product.findMany({
+        where: { id: { notIn: topSoldIds } },
+        take: remainingCount,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          category: { select: { id: true, name: true, slug: true } }, 
+          images: true,
+          variants: true
+        }
+      });
+      topSelling = [...topSelling, ...additionalProducts];
+    }
 
     const homeCategories = await prisma.category.findMany({
       where: { showOnHome: true },
