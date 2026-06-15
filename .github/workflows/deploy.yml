@@ -1,0 +1,35 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main # Chạy tự động khi bạn push lên nhánh main
+
+jobs:
+  deploy:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # Ở dưới là các lệnh chạy trên EC2. BẠN CẦN CHỈNH SỬA LẠI ĐƯỜNG DẪN Ở DÒNG 'cd'
+          script: |
+            # 1. Di chuyển vào thư mục chứa code backend trên máy chủ AWS
+            cd ~/truongtin-backend
+            
+            # 2. Kéo code mới nhất từ GitHub về
+            git pull origin main
+            
+            # 3. Cài đặt các thư viện mới (nếu có)
+            npm install
+            
+            # 4. Build lại code TypeScript
+            npm run build
+            
+            # 5. Khởi động lại PM2 để nạp code mới
+            pm2 restart all
