@@ -69,7 +69,7 @@ app.set('trust proxy', 1);
 // ==========================================
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,   // Cửa sổ 15 phút
-  max: 100,                    // Tối đa 100 request/IP/15 phút
+  max: 1000,                   // Tối đa 1000 request/IP/15 phút để đảm bảo trải nghiệm SPA mượt mà
   standardHeaders: true,
   legacyHeaders: false,
   message: {

@@ -86,6 +86,7 @@ model Product {
 
   @@index([categoryId])
   @@index([isVisible])
+  @@index([name]) // Thêm Index cho thanh tìm kiếm
 }
 
 // ================= PRODUCT VARIANT =================
