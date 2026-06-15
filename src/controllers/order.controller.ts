@@ -36,7 +36,7 @@ try {
   payos = new PayOSClass({ clientId, apiKey, checksumKey });
 }
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://diennuoctruongtin.com";
 
 // ==========================================
 // 1. NGƯỜI DÙNG: TẠO ĐƠN HÀNG (FULL LOGIC)
