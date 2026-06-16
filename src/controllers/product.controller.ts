@@ -100,8 +100,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
             return {
               name: variantName, 
               sku: v.sku && v.sku.trim() !== "" ? v.sku : `${slug}-${Date.now()}-${index}`,
-              price: parseFloat(v.price as string),
-              stock: parseInt(v.stock as string)
+              price: v.price ? (parseFloat(v.price as string) || 0) : 0,
+              stock: v.stock ? (parseInt(v.stock as string) || 0) : 0
             };
           })
         },
@@ -142,8 +142,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
             return {
               name: variantName,
               sku: v.sku && v.sku.trim() !== "" ? v.sku : `${slug}-${Date.now()}-${index}`,
-              price: parseFloat(v.price as string),
-              stock: parseInt(v.stock as string)
+              price: v.price ? (parseFloat(v.price as string) || 0) : 0,
+              stock: v.stock ? (parseInt(v.stock as string) || 0) : 0
             };
           })
         },
