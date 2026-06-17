@@ -547,7 +547,7 @@ export const getHomeData = async (req: Request, res: Response): Promise<void> =>
       orderBy: { displayOrder: 'asc' },
       include: {
         products: {
-          take: 6,
+          take: 18,
           orderBy: { createdAt: 'desc' },
           include: {
             images: true,
