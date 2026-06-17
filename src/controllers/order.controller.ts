@@ -1,5 +1,25 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import prisma from "../lib/prisma";
+
+// Helper gửi thông báo Discord
+const sendDiscordNotification = async (orderId: string, customerName: string, customerPhone: string, totalAmount: number) => {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) return;
+
+  try {
+    const payload = {
+      content: `🛒 **Có Đơn Hàng Mới!**\n- **Mã Đơn:** ${orderId}\n- **Khách Hàng:** ${customerName}\n- **Số Điện Thoại:** ${customerPhone}\n- **Tổng Tiền:** ${totalAmount.toLocaleString('vi-VN')}đ`
+    };
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    console.log(`[Discord] Đã gửi thông báo cho đơn hàng ${orderId}`);
+  } catch (error: any) {
+    console.error(`[Discord Error] Không thể gửi thông báo: ${error.message}`);
+  }
+};
 
 // 1. Lấy toàn bộ thư viện PayOS
 const PayOSLib = require("@payos/node");
@@ -180,6 +200,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       orderCode: newOrder.createdOrder.orderCode.toString() 
     });
 
+    // Gửi thông báo Discord cho đơn COD
+    sendDiscordNotification(payosOrderCode.toString(), fullName, phone, newOrder.calculatedTotal);
+
   } catch (error: any) {
     console.error(`[Order Error] Lỗi khi tạo đơn: ${error.message}`);
     res.status(400).json({ success: false, message: error.message });
@@ -255,6 +278,9 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
           } 
         });
         console.log(`[Webhook] Đơn hàng #${payosOrderCode} đã thanh toán thành công.`);
+        
+        // Gửi thông báo Discord khi PayOS báo thanh toán thành công
+        sendDiscordNotification(payosOrderCode.toString(), order.customerName, order.phone, order.total);
       } else if (isCancelled || isExpired) {
         // Hoàn lại kho
         await prisma.$transaction(async (tx) => {
