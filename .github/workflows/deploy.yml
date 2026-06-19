@@ -1,37 +1,67 @@
-name: Deploy to AWS EC2
+name: Build and Deploy Next.js to AWS EC2
 
 on:
   push:
     branches:
-      - main # Chạy tự động khi bạn push lên nhánh main
+      - main # Chạy tự động khi push lên nhánh main
 
 jobs:
-  deploy:
-    name: Deploy Backend
+  build-and-deploy:
+    name: Build & Deploy
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy via SSH
+      # 1. Lấy code về máy ảo của GitHub
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Setup môi trường Node.js trên GitHub
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Phiên bản Node.js ổn định
+
+      # 3. Cài đặt thư viện và Build (Chạy bằng RAM của GitHub, EC2 không bị mệt)
+      - name: Install and Build on GitHub Runner
+        run: |
+          npm install
+          npx prisma generate
+          npm run build
+
+      # 4. Gói ghém toàn bộ code và thư mục .next vừa build xong thành 1 cục (bỏ qua node_modules cho nhẹ)
+      - name: Zip build files
+        run: tar --exclude='./node_modules' --exclude='./.git' -czf deploy.tar.gz .
+
+      # 5. Bắn cục file nén đó sang máy chủ AWS EC2
+      - name: Copy files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "deploy.tar.gz"
+          target: "~/truongtin-backend"
+
+      # 6. Đăng nhập vào EC2, giải nén, nối Database và nạp đạn cho PM2
+      - name: Extract, Update DB & Restart PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. Di chuyển vào thư mục chứa code backend trên máy chủ AWS
             cd ~/truongtin-backend
-
-            # 2. Kéo code mới nhất từ GitHub về
-            git pull origin main
-
-            # 3. Cài đặt các thư viện mới (nếu có)
-            npm install
-
-            # 4. Dịch lại cấu trúc Database mới (BẮT BUỘC PHẢI CÓ)
+            
+            # Giải nén file vừa nhận từ GitHub và xóa file nén rác đi
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
+            
+            # Cài đặt thư viện trên EC2 (Chỉ cài gói cần cho lúc chạy để tiết kiệm tối đa RAM)
+            npm install --omit=dev
+            
+            # Đồng bộ cấu trúc Database mới nhất lên Neon
             npx prisma generate
-
-            # 5. Build lại code TypeScript
-            npm run build
-
-            # 6. Nạp lại code mới êm ái, không làm rớt mạng khách (Dùng reload thay vì restart)
+            npx prisma db push
+            
+            # Khởi chạy lại hệ thống không làm rớt mạng khách
             pm2 reload all
