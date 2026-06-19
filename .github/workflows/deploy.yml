@@ -30,7 +30,9 @@ jobs:
 
       # 4. Gói ghém toàn bộ code và thư mục .next vừa build xong thành 1 cục (bỏ qua node_modules cho nhẹ)
       - name: Zip build files
-        run: tar --exclude='./node_modules' --exclude='./.git' --exclude='./deploy.tar.gz' -czf deploy.tar.gz .
+        run: |
+          tar --exclude='./node_modules' --exclude='./.git' -czf ../deploy.tar.gz .
+          mv ../deploy.tar.gz ./deploy.tar.gz
 
       # 5. Bắn cục file nén đó sang máy chủ AWS EC2
       - name: Copy files to EC2
