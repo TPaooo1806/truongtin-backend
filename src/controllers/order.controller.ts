@@ -1,4 +1,4 @@
-﻿import { Request, Response } from "express";
+import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 
 // Helper gửi thông báo Discord
@@ -400,11 +400,33 @@ export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const whereClause = {
-      paymentStatus: {
-        in: ["UNPAID", "PAID"]
-      }
-    };
+    const { status, paymentStatus, paymentMethod, search } = req.query;
+
+    const whereClause: any = {};
+
+    if (status && status !== 'ALL') {
+      whereClause.status = status;
+    }
+    
+    if (paymentStatus && paymentStatus !== 'ALL') {
+      whereClause.paymentStatus = paymentStatus;
+    } else if (!paymentStatus) {
+      // Mặc định ban đầu chỉ hiển thị đơn chưa thanh toán hoặc đã thanh toán (ẩn đơn Hủy/Hết hạn)
+      whereClause.paymentStatus = { in: ["UNPAID", "PAID"] };
+    }
+
+    if (paymentMethod && paymentMethod !== 'ALL') {
+      whereClause.paymentMethod = paymentMethod;
+    }
+
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      const searchNum = Number(search);
+      whereClause.OR = [
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        ...( !isNaN(searchNum) ? [{ orderCode: BigInt(searchNum) }] : [] )
+      ];
+    }
 
     const [orders, totalOrders] = await Promise.all([
       prisma.order.findMany({
