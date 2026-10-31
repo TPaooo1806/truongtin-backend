@@ -251,9 +251,9 @@ export const verifyPayOSWebhook = async (req: Request, res: Response): Promise<v
     
     // Bẻ lái: Gọi hàm bản mới (v2), nếu không có thì gọi hàm bản cũ (v1)
     if (typeof payos.verifyPaymentWebhookData === "function") {
-      verifiedData = payos.verifyPaymentWebhookData(webhookData);
+      verifiedData = await payos.verifyPaymentWebhookData(webhookData);
     } else if (payos.webhooks && typeof payos.webhooks.verify === "function") {
-      verifiedData = payos.webhooks.verify(webhookData);
+      verifiedData = await payos.webhooks.verify(webhookData);
     } else {
       throw new Error("Lỗi PayOS: Không tìm thấy hàm verify.");
     }

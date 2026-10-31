@@ -93,6 +93,7 @@ const authLimiter = rateLimit({
 const orderLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,   // 15 phút
   max: 10,                    // Tối đa 10 đơn hàng / IP / 15 phút
+  skip: (req) => req.path === '/webhook' || req.path.startsWith('/admin') || req.method === 'GET',
   message: {
     success: false,
     message: 'Bạn đang tạo quá nhiều đơn hàng. Vui lòng thử lại sau 15 phút!'
