@@ -41,22 +41,36 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       whereCondition.id = { not: Number(excludeId) };
     }
 
-   if (q) {
-  // Băm từ khóa thành mảng các từ (vd: "ống pvc" -> ["ống", "pvc"])
-  const searchWords = q.trim().split(/\s+/);
-  
-  // Yêu cầu Prisma tìm sản phẩm có chứa TẤT CẢ các từ này
-  whereCondition.AND = searchWords.map(word => ({
-    name: { contains: word, mode: 'insensitive' }
-  }));
-}
+    const brand = req.query.brand as string | undefined;
+    if (brand && brand !== 'all' && brand !== 'Tất cả') {
+      if (whereCondition.AND) {
+        whereCondition.AND.push({ name: { contains: brand, mode: 'insensitive' } });
+      } else {
+        whereCondition.name = { contains: brand, mode: 'insensitive' };
+      }
+    }
+
+    if (q) {
+      // Băm từ khóa thành mảng các từ (vd: "ống pvc" -> ["ống", "pvc"])
+      const searchWords = q.trim().split(/\s+/);
+      
+      // Yêu cầu Prisma tìm sản phẩm có chứa TẤT CẢ các từ này
+      const andConditions = searchWords.map(word => ({
+        name: { contains: word, mode: 'insensitive' }
+      }));
+      if (whereCondition.AND) {
+        whereCondition.AND.push(...andConditions);
+      } else {
+        whereCondition.AND = andConditions;
+      }
+    }
 
     const [products, totalItems] = await Promise.all([
       prisma.product.findMany({
         where: whereCondition,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         include: {
           category: { select: { id: true, name: true, slug: true } }, 
           images: true,
