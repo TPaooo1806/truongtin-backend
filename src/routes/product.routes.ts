@@ -39,7 +39,18 @@ router.delete('/products/:id', verifyToken, isAdmin, productController.deletePro
 
 // --- NHÁNH BÌNH LUẬN ---
 router.get('/products/:id/reviews', reviewController.getProductReviews);
-router.post('/reviews', verifyToken, reviewController.createReview);
+router.post('/reviews', (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return verifyToken(req, res, next);
+  }
+  next();
+}, reviewController.createReview);
+
+// --- NHÁNH QUẢN TRỊ ĐÁNH GIÁ (ADMIN) ---
+router.get('/admin/reviews', verifyToken, isAdmin, reviewController.getAdminReviews);
+router.put('/admin/reviews/:id/status', verifyToken, isAdmin, reviewController.updateReviewStatus);
+router.delete('/admin/reviews/:id', verifyToken, isAdmin, reviewController.deleteReview);
 // --- NHÁNH BÁO CÁO DOANH THU & TỒN KHO ---
 router.get('/reports/dashboard', verifyToken, isAdmin, reportController.getDashboardStats);
 export default router;

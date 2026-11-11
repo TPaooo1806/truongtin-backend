@@ -36,10 +36,12 @@ enum OrderStatus {
 // ================= CATEGORY =================
 
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String
+  id           Int      @id @default(autoincrement())
+  name         String
   slug         String   @unique
+  icon         String?  @default("bi-tag")
   showOnHome   Boolean  @default(false)
+  isActive     Boolean  @default(true)
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -47,6 +49,7 @@ model Category {
   products  Product[]
 
   @@index([slug])
+  @@index([isActive])
 }
 
 // ================= USER =================
@@ -77,6 +80,7 @@ model Product {
 
   name        String
   slug        String    @unique
+  brand       String?   // Thương hiệu chuẩn hóa (CADIVI, BÌNH MINH, PANASONIC...)
   description String?
   unit        String    @default("Cái")
   isVisible   Boolean   @default(true)
@@ -93,6 +97,7 @@ model Product {
   @@index([categoryId])
   @@index([isVisible])
   @@index([name]) // Thêm Index cho thanh tìm kiếm
+  @@index([brand]) // Index lọc theo hãng
 }
 
 // ================= PRODUCT VARIANT =================
@@ -118,20 +123,28 @@ model ProductVariant {
 
 // ================= REVIEW =================
 
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Review {
-  id        Int      @id @default(autoincrement())
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
+  id          Int          @id @default(autoincrement())
+  productId   Int
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      Int?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName    String       @default("Khách hàng")
+  userPhone   String?
+  rating      Int          @default(5)
+  comment     String       @default("")
+  status      ReviewStatus @default(APPROVED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
 
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  productId Int
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, productId])
   @@index([productId])
+  @@index([status])
 }
 
 // ================= PRODUCT IMAGE =================

@@ -16,6 +16,7 @@ import guestCartRoutes from './routes/guestcart.route';
 import cartRoutes from './routes/cart.route';
 import shippingRoutes from './routes/shipping.routes';
 import customerRoutes from './routes/customer.routes';
+import reviewRoutes from './routes/review.routes';
 import { verifyToken, isAdmin } from './middlewares/auth.middleware';
 import { getAdminNotifications } from "./controllers/notification.controller";
 import catalogCacheService from './services/catalogCache.service';
@@ -145,6 +146,9 @@ app.use('/api/shipping', shippingRoutes);
 
 // Route cho khách hàng
 app.use('/api/customers', customerRoutes);
+
+// Route cho đánh giá sản phẩm (Review Moderation)
+app.use('/api/reviews', reviewRoutes);
 
 // Khởi tạo RAM Cache cho AI Chatbot
 catalogCacheService.init().then(() => {

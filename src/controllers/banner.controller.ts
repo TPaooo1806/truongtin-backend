@@ -79,3 +79,26 @@ export const deleteBanner = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: "Lỗi xóa banner" });
   }
 };
+
+// 6. CẬP NHẬT BANNER
+export const updateBanner = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, imageUrl, link, position, isActive } = req.body;
+    const dataToUpdate: any = {};
+    if (title !== undefined) dataToUpdate.title = title;
+    if (imageUrl !== undefined) dataToUpdate.imageUrl = imageUrl;
+    if (link !== undefined) dataToUpdate.link = link;
+    if (position !== undefined) dataToUpdate.position = position;
+    if (isActive !== undefined) dataToUpdate.isActive = isActive;
+
+    const updated = await prisma.banner.update({
+      where: { id: Number(id) },
+      data: dataToUpdate
+    });
+    res.json({ success: true, message: "Cập nhật banner thành công", data: updated });
+  } catch (error) {
+    console.error("Lỗi:", error);
+    res.status(500).json({ success: false, message: "Lỗi cập nhật banner" });
+  }
+};
