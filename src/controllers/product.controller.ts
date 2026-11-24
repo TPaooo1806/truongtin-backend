@@ -26,13 +26,17 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     const skip = (page - 1) * limit;
 
     const whereCondition: any = {};
-    if (category) {
-      whereCondition.category = { slug: category };
+    if (category && category !== 'ALL' && category !== 'all' && category !== '') {
+      if (!isNaN(Number(category))) {
+        whereCondition.categoryId = Number(category);
+      } else {
+        whereCondition.category = { slug: category };
+      }
     }
     
     // Hỗ trợ lấy theo ID Danh mục trực tiếp (Dành cho chức năng Sản phẩm liên quan)
     const categoryId = req.query.categoryId as string | undefined;
-    if (categoryId) {
+    if (categoryId && categoryId !== 'ALL' && categoryId !== 'all' && categoryId !== '') {
       whereCondition.categoryId = Number(categoryId);
     }
 
@@ -57,18 +61,30 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       }
     }
 
-    if (q) {
-      // Băm từ khóa thành mảng các từ (vd: "ống pvc" -> ["ống", "pvc"])
-      const searchWords = q.trim().split(/\s+/);
+    if (q && q.trim()) {
+      const trimmedQ = q.trim();
+      const searchWords = trimmedQ.split(/\s+/).filter(Boolean);
       
-      // Yêu cầu Prisma tìm sản phẩm có chứa TẤT CẢ các từ này
-      const andConditions = searchWords.map(word => ({
-        name: { contains: word, mode: 'insensitive' }
+      const wordConditions = searchWords.map(word => ({
+        OR: [
+          { name: { contains: word, mode: 'insensitive' as const } },
+          { brand: { contains: word, mode: 'insensitive' as const } }
+        ]
       }));
+
+      // Cho phép khớp hoặc toàn cụm q trong name/brand, hoặc tất cả các từ trong name/brand
+      const searchCondition = {
+        OR: [
+          { name: { contains: trimmedQ, mode: 'insensitive' as const } },
+          { brand: { contains: trimmedQ, mode: 'insensitive' as const } },
+          { AND: wordConditions }
+        ]
+      };
+
       if (whereCondition.AND) {
-        whereCondition.AND.push(...andConditions);
+        whereCondition.AND.push(searchCondition);
       } else {
-        whereCondition.AND = andConditions;
+        whereCondition.AND = [searchCondition];
       }
     }
 

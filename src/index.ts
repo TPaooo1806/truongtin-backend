@@ -32,9 +32,11 @@ const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const allowedOrigins = [
   frontendUrl,
   'http://localhost:3000',
+  'http://admin.localhost:3000',
   'https://truongtin-frontend.vercel.app',
   'https://diennuoctruongtin.com',       // Thêm domain chính
-  'https://www.diennuoctruongtin.com'    // Thêm cả bản có www để đề phòng
+  'https://www.diennuoctruongtin.com',   // Thêm cả bản có www để đề phòng
+  'https://admin.diennuoctruongtin.com'  // Subdomain Admin
 ];
 
 app.use(cors({
@@ -42,8 +44,12 @@ app.use(cors({
     // Cho phép requests không có origin (ví dụ server-to-server hoặc Postman)
     if (!origin) return callback(null, true);
     
-    // Nếu origin nằm trong danh sách cho phép hoặc là domain của Vercel
-    if (allowedOrigins.includes(origin) || origin.endsWith('vercel.app')) {
+    // Nếu origin nằm trong danh sách cho phép, hoặc là domain của Vercel, hoặc subdomain của diennuoctruongtin.com
+    if (
+      allowedOrigins.includes(origin) || 
+      origin.endsWith('.vercel.app') || 
+      origin.endsWith('.diennuoctruongtin.com')
+    ) {
       return callback(null, true);
     }
     
