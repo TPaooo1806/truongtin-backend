@@ -3,6 +3,7 @@ import prisma from '../config/prisma';
 import * as XLSX from 'xlsx'; 
 import ExcelJS from 'exceljs';
 import { triggerRevalidate } from '../lib/revalidate';
+import catalogCacheService from '../services/catalogCache.service';
 
 interface VariantInput {
   sku: string;
@@ -132,6 +133,9 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       }
     });
 
+    // Đánh dấu cache RAM hết hạn (không gọi DB)
+    catalogCacheService.invalidateCache();
+
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {
     console.error("🚀 Lỗi tạo sản phẩm:", error.message || error); 
@@ -178,6 +182,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 
     // Ép Next.js xóa cache trang chi tiết sản phẩm này
     await triggerRevalidate(`/product/${slug}`);
+    catalogCacheService.invalidateCache();
 
     res.status(200).json({ success: true, message: "Cập nhật thành công", data: updatedProduct });
   } catch (error: any) {
@@ -196,6 +201,8 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
       await tx.productImage.deleteMany({ where: { productId } });
       await tx.product.delete({ where: { id: productId } });
     });
+
+    catalogCacheService.invalidateCache();
 
     res.status(200).json({ success: true, message: "Đã xóa" });
   } catch (error: any) {
@@ -770,6 +777,7 @@ export const importProductsFromExcel = async (req: Request | any, res: Response)
 
     // Kích hoạt revalidate trang chủ & danh mục
     triggerRevalidate('/');
+    catalogCacheService.invalidateCache();
 
     res.status(200).json({
       success: true,

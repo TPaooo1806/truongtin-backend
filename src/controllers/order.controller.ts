@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
+import { checkAndCancelExpiredOrders } from "../services/cron.service";
 
 // Helper gửi thông báo Discord
 const sendDiscordNotification = async (orderId: string, customerName: string, customerPhone: string, totalAmount: number) => {
@@ -396,6 +397,9 @@ export const trackOrder = async (req: Request, res: Response): Promise<void> => 
 // ==========================================
 export const getAllOrdersAdmin = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    // Tự động kiểm tra và hủy các đơn hàng UNPAID quá 12h theo nhu cầu (On-Demand)
+    await checkAndCancelExpiredOrders();
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
@@ -469,6 +473,9 @@ export const lookupOrders = async (req: Request, res: Response): Promise<void> =
   }
 
   try {
+    // Tự động kiểm tra và hủy các đơn hàng UNPAID quá 12h theo nhu cầu (On-Demand)
+    await checkAndCancelExpiredOrders();
+
     const orders = await prisma.order.findMany({
       where: { phone: phone.trim() },
       orderBy: { createdAt: 'desc' },

@@ -80,8 +80,8 @@ export const chatWithAI = async (req: Request, res: Response) => {
       
       console.log(`[Chatbot] AI đang tìm kiếm từ khóa: "${query}"`);
       
-      // Tìm kiếm trong RAM Cache
-      const searchResults = catalogCacheService.searchProducts(query);
+      // Tìm kiếm trong RAM Cache (Lazy Load)
+      const searchResults = await catalogCacheService.searchProducts(query);
       
       // Format kết quả trả về cho AI
       let apiResponse: any;

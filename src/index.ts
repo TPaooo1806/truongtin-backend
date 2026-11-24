@@ -19,8 +19,6 @@ import customerRoutes from './routes/customer.routes';
 import reviewRoutes from './routes/review.routes';
 import { verifyToken, isAdmin } from './middlewares/auth.middleware';
 import { getAdminNotifications } from "./controllers/notification.controller";
-import catalogCacheService from './services/catalogCache.service';
-import { startCronJobs } from './services/cron.service';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -106,8 +104,13 @@ app.use('/api/auth', authLimiter);
 app.use('/api/orders', orderLimiter);
 
 // ==========================================
-// Route kiểm tra server
+// Route kiểm tra server & Health Check cho AWS Load Balancer / ECS
+// Trả về JSON tĩnh, TUYỆT ĐỐI không gọi Prisma/DB để tránh đánh thức Neon Compute
 // ==========================================
+app.get(['/health', '/api/health', '/ping'], (req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
 app.get('/', (req: Request, res: Response) => {
   res.send('Backend Trường Tín đang chạy! 🚀');
 });
@@ -149,14 +152,6 @@ app.use('/api/customers', customerRoutes);
 
 // Route cho đánh giá sản phẩm (Review Moderation)
 app.use('/api/reviews', reviewRoutes);
-
-// Khởi tạo RAM Cache cho AI Chatbot
-catalogCacheService.init().then(() => {
-  console.log("✅ Catalog Cache Service initialized.");
-});
-
-// Khởi chạy các Cron Job ngầm (Quét đơn hết hạn...)
-startCronJobs();
 
 // [BM-06] Thêm guard Admin cho Notification API
 // Trước đây không bảo vệ — ai cũng gọi được để xem thông tin đơn hàng khách
